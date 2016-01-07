@@ -2,21 +2,21 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include "hdp.h"
+#include "hdp_math_utils.h"
 #include "sonLibSet.h"
 #include "sonLibList.h"
-#include "hdp_math_utils.h"
 #include "ranlib.h"
 
 #define N_IG_NUM_PARAMS 4
-#define UNASSIGNED -1
 
-typedef struct DirichletProcess;
-typedef struct Factor;
+typedef struct Factor Factor;
+typedef struct DirichletProcess DirichletProcess;
+typedef enum FactorType FactorType;
 
 enum FactorType {
-    base,
-    middle,
-    data_pt
+    BASE,
+    MIDDLE,
+    DATA_PT
 };
 
 struct Factor {
@@ -27,9 +27,78 @@ struct Factor {
     struct DirichletProcess* dp;
 };
 
+struct DirichletProcess {
+    int id;
+    struct HierarchicalDirichletProcess* hdp;
+    double* gamma;
+    int depth;
+
+    struct DirichletProcess* parent;
+    stList* children;
+    stSet* factors;
+    int num_factor_children;
+
+    double base_factor_wt;
+    double* posterior_predictive;
+    double* spline_slopes;
+
+    double cached_factor_mean;
+    double cached_factor_sum_sq_dev;
+    int cached_factor_size;
+
+    bool observed;
+};
+
+struct HierarchicalDirichletProcess {
+    bool finalized;
+    double* data;
+    int* data_pt_dp_id;
+    int data_length;
+
+    struct DirichletProcess* base_dp;
+    struct DirichletProcess** dps;
+    int num_dps;
+
+    double* gamma;
+    int depth;
+
+    // normal-inverse gamma parameters
+    double mu;
+    double nu;
+    double two_alpha;
+    double beta;
+
+    double* sampling_grid;
+    int grid_length;
+    int samples_taken;
+    bool splines_finalized;
+
+    struct SumOfLogsMemo* log_sum_memo;
+
+    bool sample_gamma;
+    double* gamma_alpha;
+    double* gamma_beta;
+    double* w_aux_vector;
+    bool* s_aux_vector;
+};
+
+void cache_base_factor_params(Factor* fctr, double mu, double nu, double two_alpha, double beta, double log_post_term) {
+    if (fctr->factor_type != BASE) {
+        fprintf(stderr, "Can only cache parameters for base factors");
+        exit(EXIT_FAILURE);
+    }
+
+    double* param_array = fctr->factor_data;
+    param_array[0] = mu;
+    param_array[1] = nu;
+    param_array[2] = two_alpha;
+    param_array[3] = beta;
+    param_array[4] = log_post_term;
+}
+
 Factor* new_base_factor(HierarchicalDirichletProcess* hdp) {
     Factor* fctr = (Factor*) malloc(sizeof(Factor));
-    fctr->factor_type = FactorType.base;
+    fctr->factor_type = BASE;
 
     fctr->factor_data = (double*) malloc(sizeof(double) * (N_IG_NUM_PARAMS + 1));
     cache_base_factor_params(fctr, hdp->mu, hdp->nu, hdp->two_alpha, hdp->beta, 1.0);
@@ -46,12 +115,12 @@ Factor* new_base_factor(HierarchicalDirichletProcess* hdp) {
 
 Factor* new_middle_factor(DirichletProcess* dp) {
     if (dp->parent == NULL || stList_length(dp->children) == 0) {
-        fprinf(stderr, "Attempted to create middle factor in leaf or root Dirichlet process");
+        fprintf(stderr, "Attempted to create middle factor in leaf or root Dirichlet process");
         exit(EXIT_FAILURE);
     }
 
     Factor* fctr = (Factor*) malloc(sizeof(Factor));
-    fctr->factor_type = FactorType.middle;
+    fctr->factor_type = MIDDLE;
     fctr->factor_data = NULL;
 
     // note: assigning to parent handled externally
@@ -65,12 +134,12 @@ Factor* new_middle_factor(DirichletProcess* dp) {
 
 Factor* new_data_pt_factor(DirichletProcess* dp, int data_pt_idx) {
     if (stList_length(dp->children) != 0) {
-        fprinf(stderr, "Attempted to create data point factor in non-leaf Dirichlet process");
+        fprintf(stderr, "Attempted to create data point factor in non-leaf Dirichlet process");
         exit(EXIT_FAILURE);
     }
 
     Factor* fctr = (Factor*) malloc(sizeof(Factor));
-    fctr->factor_type = FactorType.data_pt;
+    fctr->factor_type = DATA_PT;
     fctr->factor_data = &(dp->hdp->data[data_pt_idx]);
 
     // note: assigning to parent handled externally
@@ -101,7 +170,7 @@ void destroy_factor(Factor* fctr) {
         }
     }
 
-    if (fctr->factor_type == FactorType.base) {
+    if (fctr->factor_type == BASE) {
         free(fctr->factor_data);
     }
 
@@ -109,7 +178,7 @@ void destroy_factor(Factor* fctr) {
 }
 
 Factor* get_base_factor(Factor* fctr) {
-    while (fctr->factor_type != FactorType.base) {
+    while (fctr->factor_type != BASE) {
         fctr = fctr->parent;
         if (fctr == NULL) {
             break;
@@ -119,7 +188,7 @@ Factor* get_base_factor(Factor* fctr) {
 }
 
 double get_factor_data_pt(Factor* fctr) {
-    if (fctr->factor_type != FactorType.data_pt) {
+    if (fctr->factor_type != DATA_PT) {
         fprintf(stderr, "Attempted to access data point from non-leaf factor");
         exit(EXIT_FAILURE);
     }
@@ -127,7 +196,7 @@ double get_factor_data_pt(Factor* fctr) {
 }
 
 void get_factor_sum_internal(Factor* fctr, double* sum, int* num_data) {
-    if (fctr->factor_type == FactorType.data_pt) {
+    if (fctr->factor_type == DATA_PT) {
         *sum += get_factor_data_pt(fctr);
         (*num_data)++;
     }
@@ -135,7 +204,7 @@ void get_factor_sum_internal(Factor* fctr, double* sum, int* num_data) {
         stSetIterator* child_iter = stSet_getIterator(fctr->children);
         Factor* child_factor = (Factor*) stSet_getNext(child_iter);
         while (child_factor != NULL) {
-            get_factor_data_sum_internal(child_factor, sum, num_data);
+            get_factor_sum_internal(child_factor, sum, num_data);
             child_factor = (Factor*) stSet_getNext(child_iter);
         }
         stSet_destructIterator(child_iter);
@@ -143,7 +212,7 @@ void get_factor_sum_internal(Factor* fctr, double* sum, int* num_data) {
 }
 
 void get_factor_ssd_internal(Factor* fctr, double center, double* sum_sq_dev) {
-    if (fctr->factor_type == FactorType.data_pt) {
+    if (fctr->factor_type == DATA_PT) {
         double dev = get_factor_data_pt(fctr) - center;
         *sum_sq_dev += dev * dev;
     }
@@ -167,20 +236,6 @@ void get_factor_stats(Factor* fctr, double* mean_out, double* sum_sq_dev_out, in
     get_factor_ssd_internal(fctr, *mean_out, sum_sq_dev_out);
 }
 
-void cache_base_factor_params(Factor* fctr, double mu, double nu, double two_alpha, double beta, double log_post_term) {
-    if (fctr->factor_type != FactorType.base) {
-        fprintf(stderr, "Can only cache parameters for base factors");
-        exit(EXIT_FAILURE);
-    }
-
-    double* param_array = fctr->factor_data;
-    param_array[0] = mu;
-    param_array[1] = nu;
-    param_array[2] = two_alpha;
-    param_array[3] = beta;
-    param_array[4] = log_post_term;
-}
-
 void add_update_base_factor_params(Factor* fctr, double mean, double sum_sq_devs, double num_data) {
     double* param_array = fctr->factor_data;
 
@@ -198,7 +253,8 @@ void add_update_base_factor_params(Factor* fctr, double mean, double sum_sq_devs
 
     double beta_post = beta_prev + .5 * (sum_sq_devs + sq_mean_dev);
 
-    double log_post_term = log_posterior_conditional_term(nu_post, two_alpha_post, beta_post);
+    double log_post_term = log_posterior_conditional_term(nu_post, two_alpha_post, beta_post,
+                                                          fctr->dp->hdp->log_sum_memo);
 
     cache_base_factor_params(fctr, mu_post, nu_post, two_alpha_post, beta_post, log_post_term);
 }
@@ -220,7 +276,8 @@ void remove_update_base_factor_params(Factor* fctr, double mean, double sum_sq_d
 
     double beta_prev = beta_post - .5 * (sum_sq_devs + sq_mean_dev);
 
-    double log_post_term = log_posterior_conditional_term(nu_prev, two_alpha_prev, beta_prev);
+    double log_post_term = log_posterior_conditional_term(nu_prev, two_alpha_prev, beta_prev,
+                                                          fctr->dp->hdp->log_sum_memo);
 
     cache_base_factor_params(fctr, mu_prev, nu_prev, two_alpha_prev, beta_prev, log_post_term);
 }
@@ -256,12 +313,13 @@ double factor_parent_joint_log_likelihood(Factor* fctr, Factor* parent) {
 }
 
 double data_pt_factor_parent_likelihood(Factor* data_pt_fctr, Factor* parent) {
-    if (data_pt_fctr->factor_type != FactorType.data_pt) {
+    if (data_pt_fctr->factor_type != DATA_PT) {
         fprintf(stderr, "Can only access data point likelihood for data point factors");
         exit(EXIT_FAILURE);
     }
 
     double data_pt = get_factor_data_pt(data_pt_fctr);
+    Factor* base_fctr = get_base_factor(parent);
     double* param_array = base_fctr->factor_data;
 
     double mu_denom = param_array[0];
@@ -279,13 +337,14 @@ double data_pt_factor_parent_likelihood(Factor* data_pt_fctr, Factor* parent) {
 
     double log_denom = param_array[4];
     double log_numer = log_posterior_conditional_term(nu_numer, two_alpha_numer, beta_numer,
-                                                      dp->hdp->log_sum_memo);
+                                                      base_fctr->dp->hdp->log_sum_memo);
 
     return (1.0 / sqrt(2.0 * M_PI)) * exp(log_numer - log_denom);
 }
 
-void evaluate_posterior_predictive(Factor* base_fctr, double* x, double* pdf_out, int length) {
-    if (base_fctr->factor_type != FactorType.base) {
+void evaluate_posterior_predictive(Factor* base_fctr, double* x, double* pdf_out, int length,
+							       SumOfLogsMemo* log_sum_memo) {
+    if (base_fctr->factor_type != BASE) {
         fprintf(stderr, "Can only evaluate posterior predictive of base factors");
         exit(EXIT_FAILURE);
     }
@@ -303,8 +362,6 @@ void evaluate_posterior_predictive(Factor* base_fctr, double* x, double* pdf_out
     double two_alpha_numer = two_alpha_denom + 1.0;
     double nu_ratio = nu_denom / nu_numer;
     double pi_factor = (1.0 / sqrt(2.0 * M_PI));
-
-    SumOfLogsMemo* log_sum_memo = dp->hdp->log_sum_memo;
 
     double mean_dev;
     double sq_mean_dev;
@@ -325,9 +382,6 @@ void evaluate_posterior_predictive(Factor* base_fctr, double* x, double* pdf_out
 void evaluate_prior_predictive(HierarchicalDirichletProcess* hdp,
                                double* x, double* pdf_out, int length) {
     //TODO: this could be made more efficient with some precomputed variables stashed in HDP
-    DirichletProcess* dp = fctr->dp;
-    HierarchicalDirichletProcess* hdp = dp->hdp;
-
     double mu = hdp->mu;
     double nu = hdp->nu;
     int two_alpha = (int) hdp->two_alpha;
@@ -355,11 +409,11 @@ double prior_likelihood(Factor* fctr) {
 
     double mu = hdp->mu;
     double nu = hdp->nu;
-    double dbl_two_alpha = hdp->two_alpha
+    double dbl_two_alpha = hdp->two_alpha;
     int two_alpha = (int) dbl_two_alpha;
     double beta = hdp->beta;
 
-    if (fctr->factor_type == FactorType.data_pt) {
+    if (fctr->factor_type == DATA_PT) {
 
         double data_pt = get_factor_data_pt(fctr);
         double dev = data_pt - mu;
@@ -401,17 +455,18 @@ double unobserved_factor_likelihood(Factor* fctr, DirichletProcess* dp) {
 
         stSetIterator* parent_fctr_iter = stSet_getIterator(parent_dp->factors);
         Factor* parent_fctr = (Factor*) stSet_getNext(parent_fctr_iter);
-        if (fctr->factor_type == FactorType.data_pt) {
-            while(parent_fctr != NULL) {
-                int fctr_size = setSet_size(parent_fctr->children);
+        double fctr_size;
+        if (fctr->factor_type == DATA_PT) {
+            while (parent_fctr != NULL) {
+                fctr_size = (double) stSet_size(parent_fctr->children);
                 likelihood += fctr_size * data_pt_factor_parent_likelihood(fctr, parent_fctr);
 
                 parent_fctr = (Factor*) stSet_getNext(parent_fctr_iter);
             }
         }
         else {
-            while(parent_fctr != NULL) {
-                int fctr_size = setSet_size(parent_fctr->children);
+            while (parent_fctr != NULL) {
+            	fctr_size = (double) stSet_size(parent_fctr->children);
                 likelihood += fctr_size * exp(factor_parent_joint_log_likelihood(fctr, parent_fctr));
 
                 parent_fctr = (Factor*) stSet_getNext(parent_fctr_iter);
@@ -419,35 +474,13 @@ double unobserved_factor_likelihood(Factor* fctr, DirichletProcess* dp) {
         }
         stSet_destructIterator(parent_fctr_iter);
 
-        likelihood += parent_gamma * unobserved_factor_likelihood(parent_dp)
+        likelihood += parent_gamma * unobserved_factor_likelihood(fctr, parent_dp);
 
         likelihood /= (parent_gamma + (double) parent_dp->num_factor_children);
 
         return likelihood;
     }
 }
-
-struct DirichletProcess {
-    int id;
-    struct HierarchicalDirichletProcess* hdp;
-    double* gamma;
-    int depth;
-
-    struct DirichletProcess* parent;
-    stList* children;
-    stSet* factors;
-    int num_factor_children;
-
-    double base_factor_wt;
-    double* posterior_predictive;
-    double* spline_slopes;
-
-    double cached_factor_mean;
-    double cached_factor_sum_sq_dev;
-    int cached_factor_size;
-
-    bool observed;
-};
 
 DirichletProcess* new_dir_proc() {
     DirichletProcess* dp = (DirichletProcess*) malloc(sizeof(DirichletProcess));
@@ -503,46 +536,9 @@ void destroy_dir_proc(DirichletProcess* dp) {
     free(dp);
 }
 
-struct HierarchicalDirichletProcess {
-    bool finalized;
-    double* data;
-    int* data_pt_dp_id;
-    int data_length;
-
-    DirichletProcess* base_dp;
-    DirichletProcess** dps;
-    int num_dps;
-
-    double* gamma;
-    int depth;
-
-    // normal-inverse gamma parameters
-    double mu;
-    double nu;
-    double two_alpha;
-    double beta;
-
-    double* sampling_grid;
-    int grid_length;
-    int samples_taken;
-    bool splines_finalized;
-
-    SumOfLogsMemo* log_sum_memo;
-
-    bool sample_gamma;
-    double* gamma_alpha;
-    double* gamma_beta;
-    double* w_aux_vector;
-    bool* s_aux_vector;
-};
-
 // fixed concentration parameters
 HierarchicalDirichletProcess* new_hier_dir_proc(int num_dps, int depth, double* gamma, double* sampling_grid,
                                                 int grid_length, double mu, double nu, double alpha, double beta) {
-    if (2 * alpha != (int) 2 * alpha) {
-        fprintf("Normal-Inverse Gamma parameter 'alpha' must be integer or half-integer");
-        exit(EXIT_FAILURE);
-    }
     if (nu <= 0.0) {
         fprintf(stderr, "nu parameter of Normal-Inverse Gamma distribution must be positive");
         exit(EXIT_FAILURE);
@@ -555,6 +551,10 @@ HierarchicalDirichletProcess* new_hier_dir_proc(int num_dps, int depth, double* 
         fprintf(stderr, "beta parameter of Normal-Inverse Gamma distribution must be positive");
         exit(EXIT_FAILURE);
     }
+    if (2 * alpha != (int) 2 * alpha) {
+            fprintf(stderr, "Normal-Inverse Gamma parameter 'alpha' must be integer or half-integer");
+            exit(EXIT_FAILURE);
+        }
     if (gamma != NULL) {
         for (int i = 0; i < depth; i++) {
             if (gamma[i] <= 0) {
@@ -591,7 +591,7 @@ HierarchicalDirichletProcess* new_hier_dir_proc(int num_dps, int depth, double* 
     hdp->base_dp = NULL;
 
     hdp->sampling_grid = sampling_grid;
-    hdp->grid_length = grid_length
+    hdp->grid_length = grid_length;
     hdp->samples_taken = 0;
     hdp->splines_finalized = false;
 
@@ -613,9 +613,21 @@ HierarchicalDirichletProcess* new_hier_dir_proc_2(int num_dps, int depth, double
                                                   double* sampling_grid, int grid_length, double mu, double nu,
                                                   double alpha, double beta) {
 
+    for (int i = 0; i < depth; i++) {
+        if (gamma_alpha[i] <= 0.0) {
+            fprintf(stderr, "alpha parameter of Gamma distribution must be positive");
+            exit(EXIT_FAILURE);
+        }
+        if (gamma_beta[i] <= 0.0) {
+            fprintf(stderr, "beta parameter of Gamma distribution must be positive");
+            exit(EXIT_FAILURE);
+        }
+    }
     HierarchicalDirichletProcess* hdp = new_hier_dir_proc(num_dps, depth, NULL, sampling_grid, grid_length, mu,
                                                           nu, alpha, beta);
 
+    hdp->sample_gamma = true;
+    
     hdp->gamma_alpha = gamma_alpha;
     hdp->gamma_beta = gamma_beta;
 
@@ -631,16 +643,10 @@ HierarchicalDirichletProcess* new_hier_dir_proc_2(int num_dps, int depth, double
 
     double* gamma = (double*) malloc(sizeof(double) * depth);
     for (int i = 0; i < depth; i++) {
-        if (gamma_alpha[i] <= 0.0) {
-            fprintf(stderr, "alpha parameter of Gamma distribution must be positive");
-            exit(EXIT_FAILURE);
-        }
-        if (gamma_beta[i] <= 0.0) {
-            fprintf(stderr, "beta parameter of Gamma distribution must be positive");
-            exit(EXIT_FAILURE);
-        }
         gamma[i] = gamma_alpha[i] / gamma_beta[i];
     }
+    
+    return hdp;
 }
 
 void destroy_hier_dir_proc(HierarchicalDirichletProcess* hdp) {
@@ -730,7 +736,7 @@ void verify_tree_depth(HierarchicalDirichletProcess* hdp, DirichletProcess* dp, 
         stListIterator* st_iterator = stList_getIterator(dp->children);
         DirichletProcess* child = (DirichletProcess*) stList_getNext(st_iterator);
         while (child != NULL) {
-            verify_dp_depth(child, current_depth + 1, leaf_depth);
+            verify_tree_depth(hdp, child, current_depth + 1, leaf_depth);
             child = (DirichletProcess*) stList_getNext(st_iterator);
         }
         stList_destructIterator(st_iterator);
@@ -741,10 +747,11 @@ void verify_valid_dp_assignments(HierarchicalDirichletProcess* hdp) {
 
     int length = hdp->data_length;
     int num_dps = hdp->num_dps;
-    DirichletProcess* dps = hdp->dps;
+    DirichletProcess** dps = hdp->dps;
     int* dp_ids = hdp->data_pt_dp_id;
 
     int id;
+    DirichletProcess* dp;
     for (int i = 0; i < length; i++) {
         id = dp_ids[i];
         if (id >= num_dps || id < 0) {
@@ -752,7 +759,7 @@ void verify_valid_dp_assignments(HierarchicalDirichletProcess* hdp) {
             exit(EXIT_FAILURE);
         }
 
-        DirichletProcess* dp = dps[id];
+        dp = dps[id];
         if (stList_length(dp->children) > 0) {
             fprintf(stderr, "Data point is cannot be assigned to non-leaf Dirichlet process");
             exit(EXIT_FAILURE);
@@ -763,8 +770,7 @@ void verify_valid_dp_assignments(HierarchicalDirichletProcess* hdp) {
 void mark_observed_dps(HierarchicalDirichletProcess* hdp) {
     // mark newly observed dps
     int length = hdp->data_length;
-    int num_dps = hdp->num_dps;
-    DirichletProcess* dps = hdp->dps;
+    DirichletProcess** dps = hdp->dps;
     int* dp_ids = hdp->data_pt_dp_id;
     int grid_length = hdp->grid_length;
 
@@ -811,22 +817,24 @@ void init_factors_internal(DirichletProcess* dp, Factor* parent_factor) {
         fctr->parent = parent_factor;
         stSet_insert(parent_factor->children, (void*) fctr);
 
-        stListIterator* child_dp_iter = stList_getIterator(base_dp->children);
+        stListIterator* child_dp_iter = stList_getIterator(dp->children);
         DirichletProcess* child_dp = (DirichletProcess*) stList_getNext(child_dp_iter);
         while (child_dp != NULL) {
             init_factors_internal(child_dp, fctr);
             child_dp = (DirichletProcess*) stList_getNext(child_dp_iter);
         }
-        stList_destructIterator(child_dp_iter)
+        stList_destructIterator(child_dp_iter);
     }
 }
 
 void init_factors(HierarchicalDirichletProcess* hdp) {
     int data_length = hdp->data_length;
-    DirichletProcess** data_pt_dp_id = hdp->data_pt_dp_id;
+    int* data_pt_dp_id = hdp->data_pt_dp_id;
+    DirichletProcess** dps = hdp->dps;
+    Factor* data_pt_factor;
     for (int data_pt_idx = 0; data_pt_idx < data_length; data_pt_idx++) {
-        DirichletProcess* leaf_dp = data_pt_dp_id[data_pt_idx];
-        Factor* data_pt_factor = new_data_pt_factor(leaf_dp, data_pt_idx);
+        DirichletProcess* leaf_dp = dps[data_pt_dp_id[data_pt_idx]];
+        data_pt_factor = new_data_pt_factor(leaf_dp, data_pt_idx);
     }
 
     DirichletProcess* base_dp = hdp->base_dp;
@@ -838,14 +846,13 @@ void init_factors(HierarchicalDirichletProcess* hdp) {
         init_factors_internal(child_dp, root_factor);
         child_dp = (DirichletProcess*) stList_getNext(child_dp_iter);
     }
-    stList_destructIterator(child_dp_iter)
+    stList_destructIterator(child_dp_iter);
 
     double mean, sum_sq_devs;
     int num_data;
     get_factor_stats(root_factor, &mean, &sum_sq_devs, &num_data);
-    add_update_base_factor_params(root_factor, mean, sum_sq_dev, (double) num_data);
+    add_update_base_factor_params(root_factor, mean, sum_sq_devs, (double) num_data);
 
-    DirichletProcess** dps = hdp->dps;
     int num_dps = hdp->num_dps;
 
     int fctr_child_count;
@@ -861,12 +868,12 @@ void init_factors(HierarchicalDirichletProcess* hdp) {
         fctr_child_count = 0;
 
         fctr_iter = stSet_getIterator(dp->factors);
-        fctr = (Factor*) stList_getNext(fctr_iter);
+        fctr = (Factor*) stSet_getNext(fctr_iter);
         while (fctr != NULL) {
             fctr_child_count += stSet_size(fctr->children);
             fctr = (Factor*) stSet_getNext(fctr_iter);
         }
-        stSet_destructIterator(fctr_iter)
+        stSet_destructIterator(fctr_iter);
 
         dp->num_factor_children = fctr_child_count;
     }
@@ -918,8 +925,8 @@ void pass_data_to_hdp(HierarchicalDirichletProcess* hdp, double* data, int* dp_i
 
 void finalize_hdp_structure(HierarchicalDirichletProcess* hdp) {
     establish_base_dp(hdp);
-    verify_dp_tree(hdp)
-    verify_tree_depth(hdp->base_dp, 0, hdp->depth - 1);
+    verify_dp_tree(hdp);
+    verify_tree_depth(hdp, hdp->base_dp, 0, hdp->depth - 1);
 
     if (hdp->data != NULL) {
         finalize_data(hdp);
@@ -980,7 +987,7 @@ void unassign_from_parent(Factor* fctr) {
     fctr->parent = NULL;
     (parent->dp->num_factor_children)--;
 
-    if (stSet_size(parent) == 0) {
+    if (stSet_size(parent->children) == 0) {
         destroy_factor(parent);
     }
 
@@ -1014,7 +1021,7 @@ void assign_to_parent(Factor* fctr, Factor* parent) {
 }
 
 Factor* sample_from_data_pt_factor(Factor* fctr, DirichletProcess* dp) {
-    if (fctr->factor_type != FactorType.data_pt) {
+    if (fctr->factor_type != DATA_PT) {
         fprintf(stderr, "Attempted a data point factor sample from non-data point factor");
         exit(EXIT_FAILURE);
     }
@@ -1023,12 +1030,11 @@ Factor* sample_from_data_pt_factor(Factor* fctr, DirichletProcess* dp) {
     int num_fctrs = stSet_size(pool);
 
     Factor** fctr_order = (Factor**) malloc(sizeof(Factor*) * num_fctrs);
-    double* log_probs = (double*) malloc(sizeof(double) * num_fctrs);
 
     double* cdf = (double*) malloc(sizeof(double) * (num_fctrs + 1));
     double cumul = 0.0;
 
-    stSetIterator pool_iter = stSet_getIterator(pool);
+    stSetIterator* pool_iter = stSet_getIterator(pool);
 
     Factor* fctr_option;
     double fctr_size;
@@ -1057,7 +1063,7 @@ Factor* sample_from_data_pt_factor(Factor* fctr, DirichletProcess* dp) {
         }
         else {
             fctr_choice = new_middle_factor(dp);
-            new_fctr_parent = sample_from_data_pt_factor(fctr, parent_dp);
+            Factor* new_fctr_parent = sample_from_data_pt_factor(fctr, parent_dp);
             assign_to_parent(fctr_choice, new_fctr_parent);
         }
     }
@@ -1071,7 +1077,7 @@ Factor* sample_from_data_pt_factor(Factor* fctr, DirichletProcess* dp) {
 }
 
 Factor* sample_from_middle_factor(Factor* fctr, DirichletProcess* dp) {
-    if (fctr->factor_type != FactorType.middle) {
+    if (fctr->factor_type != MIDDLE) {
         fprintf(stderr, "Attempted a middle factor sample from non-middle factor");
         exit(EXIT_FAILURE);
     }
@@ -1082,7 +1088,7 @@ Factor* sample_from_middle_factor(Factor* fctr, DirichletProcess* dp) {
     Factor** fctr_order = (Factor**) malloc(sizeof(Factor*) * num_fctrs);
     double* log_probs = (double*) malloc(sizeof(double) * num_fctrs);
 
-    stSetIterator pool_iter = stSet_getIterator(pool);
+    stSetIterator* pool_iter = stSet_getIterator(pool);
     Factor* fctr_option;
     for (int i = 0; i < num_fctrs; i++) {
         fctr_option = (Factor*) stSet_getNext(pool_iter);
@@ -1119,7 +1125,7 @@ Factor* sample_from_middle_factor(Factor* fctr, DirichletProcess* dp) {
         }
         else {
             fctr_choice = new_middle_factor(dp);
-            new_fctr_parent = sample_from_middle_factor(fctr, parent_dp);
+            Factor* new_fctr_parent = sample_from_middle_factor(fctr, parent_dp);
             assign_to_parent(fctr_choice, new_fctr_parent);
         }
     }
@@ -1132,10 +1138,10 @@ Factor* sample_from_middle_factor(Factor* fctr, DirichletProcess* dp) {
 }
 
 Factor* sample_factor(Factor* fctr, DirichletProcess* dp) {
-    if (fctr->factor_type = FactorType.data_pt) {
+    if (fctr->factor_type == DATA_PT) {
         return sample_from_data_pt_factor(fctr, dp);
     }
-    else if (fctr->factor_type = FactorType.middle) {
+    else if (fctr->factor_type == MIDDLE) {
         return sample_from_middle_factor(fctr, dp);
     } else {
         fprintf(stderr, "Cannot sample base factor parent assignments");
@@ -1150,7 +1156,7 @@ void gibbs_factor_iteration(Factor* fctr) {
 }
 
 void cache_prior_contribution(DirichletProcess* dp, double parent_prior_prod) {
-    if (!(child->observed)) {
+    if (!(dp->observed)) {
         return;
     }
     double gamma = *(dp->gamma);
@@ -1183,10 +1189,10 @@ void cache_base_factor_weight(Factor* fctr) {
     stSet_destructIterator(child_fctr_iter);
 
     stListIterator* child_dp_iter = stList_getIterator(dp->children);
-    DirichletProcess* child = (DirichletProcess*) stList_getNext(child_dp_iter);
+    DirichletProcess* child_dp = (DirichletProcess*) stList_getNext(child_dp_iter);
     while (child != NULL) {
-        cache_prior_contribution(child, wt);
-        child = (DirichletProcess*) stList_getNext(child_dp_iter);
+        cache_prior_contribution(child_dp, wt);
+        child_dp = (DirichletProcess*) stList_getNext(child_dp_iter);
     }
     stList_destructIterator(child_dp_iter);
 }
@@ -1215,15 +1221,17 @@ void push_factor_distr(DirichletProcess* dp, double* distr, int length) {
 void take_distr_sample(HierarchicalDirichletProcess* hdp) {
     DirichletProcess* base_dp = hdp->base_dp;
 
-    double* grid = hdp->grid;
+    double* grid = hdp->sampling_grid;
     int length = hdp->grid_length;
-    double* pdf = (double*) malloc(sizeof(double) * length)
+    double* pdf = (double*) malloc(sizeof(double) * length);
+    
+    SumOfLogsMemo* log_sum_memo = hdp->log_sum_memo;
 
     stSetIterator* base_fctr_iter = stSet_getIterator(base_dp->factors);
     Factor* base_fctr = (Factor*) stSet_getNext(base_fctr_iter);
     while (base_fctr != NULL) {
         cache_base_factor_weight(base_fctr);
-        evaluate_posterior_predictive(base_fctr, grid, pdf, length);
+        evaluate_posterior_predictive(base_fctr, grid, pdf, length, log_sum_memo);
         push_factor_distr(base_dp, pdf, length);
 
         base_fctr = (Factor*) stSet_getNext(base_fctr_iter);
@@ -1240,7 +1248,7 @@ void take_distr_sample(HierarchicalDirichletProcess* hdp) {
 // Knuth shuffle algorithm
 DirichletProcess** get_shuffled_non_base_dps(HierarchicalDirichletProcess* hdp) {
     int num_dps = hdp->num_dps;
-    DirichletProcess** dps = hdp->num_dps;
+    DirichletProcess** dps = hdp->dps;
     DirichletProcess** shuffled_dps = (DirichletProcess**) malloc(sizeof(DirichletProcess*) * (num_dps - 1));
     int j = 0;
     int pos;
@@ -1323,7 +1331,7 @@ void sample_base_gamma_internal(HierarchicalDirichletProcess* hdp, double log_w,
     double num_children = (double) base_dp->num_factor_children;
 
     double gamma_beta_post = gamma_beta - log_w;
-    double gamma_alpha_adj = gamma_alpha + (double) num_factors;
+    double gamma_alpha_post = gamma_alpha + (double) num_factors;
 
     double frac = (gamma_alpha_post - 1.0)
                   / (num_children * gamma_beta_post);
@@ -1370,7 +1378,7 @@ void sample_gammas(HierarchicalDirichletProcess* hdp, int* iter_counter, int bur
     DirichletProcess* dp;
     int dp_depth;
     for (int id = 0; id < num_dps; id++) {
-        dp = dps[id]
+        dp = dps[id];
         if (!dp->observed) {
             continue;
         }
@@ -1485,7 +1493,7 @@ double dir_proc_density(HierarchicalDirichletProcess* hdp, double x, int dp_id) 
         dp = dp->parent;
     }
 
-    double interp =  spline_interp(x, hdp->grid, dp->posterior_predictive,
+    double interp =  spline_interp(x, hdp->sampling_grid, dp->posterior_predictive,
                                    dp->spline_slopes, hdp->grid_length);
     if (interp > 0.0) {
         return interp;

@@ -1,7 +1,7 @@
 #ifndef HDP_H_INCLUDED
 #define HDP_H_INCLUDED
 
-typedef struct HierarchicalDirichletProcess;
+typedef struct HierarchicalDirichletProcess HierarchicalDirichletProcess;
 
 HierarchicalDirichletProcess* new_hier_dir_proc(int num_dps, int depth, double* gamma, double* sampling_grid,
                                                 int grid_length, double mu, double nu, double alpha, double beta);

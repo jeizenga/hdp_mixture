@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdbool.h>
 #include "hdp.h"
+#include "ranlib.h"
 
 int main()
 {
@@ -19,7 +21,7 @@ int main()
      * |_  |_  |_  |_  |_     _______
      * |3| |4| |5| |6| |7| <-|gamma_2|
      */
-
+	
     // the Dirichlet processes are the numbered boxes
     int num_dir_proc = 8;
     // the depth of the tree
@@ -36,7 +38,7 @@ int main()
 
     // the grid along which the HDP will record distribution samples
     int grid_length = 250;
-    double* sampling_grid = linspace(-10.0, 10.0, grid_length);
+    double* sampling_grid = NULL;// = linspace(-10.0, 10.0, grid_length);
 
     // initialize an HDP
     HierarchicalDirichletProcess* hdp = new_hier_dir_proc(num_dir_proc, depth, gamma,
@@ -56,9 +58,13 @@ int main()
     finalize_hdp_structure(hdp);
 
     //TODO: provide example data
-    int data_length;
-    double* data;
-    int* data_pt_dps;
+    int data_length = 100;
+    double* data = (double*) malloc(sizeof(double) * data_length); 
+    int* data_pt_dps = (int*) malloc(sizeof(int) * data_length);
+    for (int i = 0; i < data_length; i++) {
+    	data_pt_dps[i] = 3 + (i % 5);
+    	data[i] = gennor(0.0, 1.0);
+    }
 
     pass_data_to_hdp(hdp, data, data_pt_dps, data_length);
     // note: you can also pass data before finalizing the structure
@@ -82,16 +88,16 @@ int main()
     // reset the HDP without needing to re-initialize it and provide new data
     reset_hdp_data(hdp);
 
-    int new_data_length;
-    double* new_data;
-    int* new_data_pt_dps;
+    int new_data_length = data_length;
+    double* new_data = data;
+    int* new_data_pt_dps = data_pt_dps;
 
     pass_data_to_hdp(hdp, new_data, new_data_pt_dps, new_data_length);
     execute_gibbs_sampling(hdp, num_samples, burn_in, thinning);
     finalize_distributions(hdp);
 
     // query density values with the new distributions
-    double density = dir_proc_density(hdp, 3.4, 6);
+    density = dir_proc_density(hdp, 3.4, 6);
 
     // free the memory
     destroy_hier_dir_proc(hdp);

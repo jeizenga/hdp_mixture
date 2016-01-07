@@ -1,7 +1,9 @@
 #ifndef HDP_MATH_UTILS_H_INCLUDED
 #define HDP_MATH_UTILS_H_INCLUDED
 
-typedef struct SumOfLogsMemo;
+#include <stdbool.h>
+
+typedef struct SumOfLogsMemo SumOfLogsMemo;
 
 SumOfLogsMemo* new_log_sum_memo();
 void destroy_log_sum_memo(SumOfLogsMemo* memo);
@@ -10,7 +12,7 @@ void destroy_log_sum_memo(SumOfLogsMemo* memo);
 double log_gamma_half(int n, SumOfLogsMemo* sum_of_logs_memo);
 
 // quick-select on array copy (does not alter original array)
-double median(double arr*, int length);
+double median(double* arr, int length);
 
 // returns the index of the first element of arr greater or equal to x, assuming arr is sorted
 // returns final index if x is greater than all elements of arr

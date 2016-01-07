@@ -1,11 +1,18 @@
 #include <math.h>
 #include <stdlib.h>
+#include <stdio.h>
+#include <stdbool.h>
 
 #define LOG_ROOT_PI .5 * log(M_PI)
 #define LOG_4 log(4)
 
+typedef struct LogGammaHalfMemo LogGammaHalfMemo;
+typedef struct SumOfLogsMemo SumOfLogsMemo;
 
-double gamma(double x) {}
+double gamma_func(double x) {
+	fprintf(stderr, "gamma function not implemented");
+	exit(EXIT_FAILURE);
+}
 
 struct LogGammaHalfMemo {
     double alpha;
@@ -19,15 +26,15 @@ struct LogGammaHalfMemo {
 
 LogGammaHalfMemo* new_log_gamma_memo(double alpha) {
     LogGammaHalfMemo* memo = (LogGammaHalfMemo*) malloc(sizeof(LogGammaHalfMemo));
-    memo->alpha;
+    memo->alpha = alpha;
     double* zero_base_case = (double*) malloc(sizeof(double));
-    zero_base_case[0] = log(gamma(alpha));
+    zero_base_case[0] = log(gamma_func(alpha));
     memo->zero_offset_final_entry = 0;
     memo->zero_offset_memo = zero_base_case;
     memo->zero_offset_length = 1;
 
     double* half_base_case = (double*) malloc(sizeof(double));
-    half_base_case[0] = log(gamma(alpha + .5));
+    half_base_case[0] = log(gamma_func(alpha + .5));
     memo->half_offset_final_entry = 0;
     memo->half_offset_memo = half_base_case;
     memo->half_offset_length = 1;
@@ -35,20 +42,19 @@ LogGammaHalfMemo* new_log_gamma_memo(double alpha) {
     return memo;
 }
 
-void destroy_log_gamma_memo(LogGammaFunctionMemo* memo) {
+void destroy_log_gamma_memo(LogGammaHalfMemo* memo) {
     free(memo->half_offset_memo);
     free(memo->zero_offset_memo);
     free(memo);
 }
 
 void extend_gamma_zero_offset_memo(LogGammaHalfMemo* memo) {
-    int final_entry = memo->zero_offset_final_entry;
-    final_entry++;
+    int final_entry = memo->half_offset_final_entry + 1;
     memo->zero_offset_final_entry = final_entry;
+    double* current_array = memo->zero_offset_memo;
 
     int current_length = memo->zero_offset_length;
     if (current_length == final_entry) {
-        double* current_array = memo->zero_offset_final_entry;
 
         int new_array_length = current_length * 2;
         double* new_array = (double*) malloc(sizeof(double) * new_array_length);
@@ -60,19 +66,19 @@ void extend_gamma_zero_offset_memo(LogGammaHalfMemo* memo) {
         memo->zero_offset_length = new_array_length;
         memo->zero_offset_memo = new_array;
         free(current_array);
+        current_array = new_array;
     }
     double log_term = log(memo->alpha - 1.0 + (double) final_entry);
-    memo->memo_array[final_entry] = memo->memo_array[final_entry - 1] + log_term;
+    current_array[final_entry] = current_array[final_entry - 1] + log_term;
 }
 
 void extend_gamma_half_offset_memo(LogGammaHalfMemo* memo) {
-    int final_entry = memo->half_offset_final_entry;
-    final_entry++;
+    int final_entry = memo->half_offset_final_entry + 1;
     memo->half_offset_final_entry = final_entry;
+    double* current_array = memo->half_offset_memo;
 
     int current_length = memo->half_offset_length;
     if (current_length == final_entry) {
-        double* current_array = memo->half_offset_final_entry;
 
         int new_array_length = current_length * 2;
         double* new_array = (double*) malloc(sizeof(double) * new_array_length);
@@ -84,9 +90,10 @@ void extend_gamma_half_offset_memo(LogGammaHalfMemo* memo) {
         memo->half_offset_length = new_array_length;
         memo->half_offset_memo = new_array;
         free(current_array);
+        current_array = new_array;
     }
     double log_term = log(memo->alpha -.5 + (double) final_entry);
-    memo->memo_array[final_entry] = memo->memo_array[final_entry - 1] + log_term;
+    current_array[final_entry] = current_array[final_entry - 1] + log_term;
 }
 
 double offset_log_gamma_half(int n, LogGammaHalfMemo* memo) {
@@ -113,7 +120,7 @@ struct SumOfLogsMemo {
 
 SumOfLogsMemo* new_log_sum_memo() {
     SumOfLogsMemo* memo = (SumOfLogsMemo*) malloc(sizeof(SumOfLogsMemo));
-    double* base_case = (double*) malloc(sizeof(double))
+    double* base_case = (double*) malloc(sizeof(double));
     base_case[0] = 0.0;
     memo->memo_array = base_case;
     memo->final_entry = 1;
@@ -166,10 +173,6 @@ double log_gamma_half(int n, SumOfLogsMemo* sum_of_logs_memo) {
 }
 
 // quick-select algorithm on array copy (does not alter original array)
-double median(double* arr, int length) {
-    return quickselect(arr, length, length / 2);
-}
-
 double quickselect(double* arr, int length, int target_idx) {
     if (target_idx < 0 || target_idx >= length) {
         fprintf(stderr, "Order statistic outside of array bounds");
@@ -248,6 +251,11 @@ double quickselect(double* arr, int length, int target_idx) {
         }
     }
 }
+
+double median(double* arr, int length) {
+    return quickselect(arr, length, length / 2);
+}
+
 
 // returns the index of the first element of arr greater or equal to x, assuming arr is sorted
 // returns final index if x is greater than all elements of arr
@@ -361,7 +369,7 @@ double* linspace(double start, double stop, int length) {
 }
 
 double rand_standard_uniform() {
-    return (double) rand()) / ((double) RAND_MAX)
+    return ((double) rand()) / ((double) RAND_MAX);
 }
 
 double rand_uniform(double a) {
