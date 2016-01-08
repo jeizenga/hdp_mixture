@@ -3,8 +3,8 @@
 #include <stdio.h>
 #include <stdbool.h>
 
-#define LOG_ROOT_PI .5 * log(M_PI)
-#define LOG_4 log(4)
+#define LOG_ROOT_PI 0.572364942924700087071713
+#define LOG_4 1.386294361119890618834464
 
 typedef struct LogGammaHalfMemo LogGammaHalfMemo;
 typedef struct SumOfLogsMemo SumOfLogsMemo;
@@ -168,7 +168,8 @@ double log_gamma_half(int n, SumOfLogsMemo* sum_of_logs_memo) {
         return sum_of_logs(sum_of_logs_memo, n / 2 - 1);
     }
     else {
-        return LOG_ROOT_PI - n * LOG_4 + sum_of_logs(sum_of_logs_memo, 2 * n) - sum_of_logs(sum_of_logs_memo, n);
+        return LOG_ROOT_PI - n * LOG_4 + sum_of_logs(sum_of_logs_memo, n - 1)
+               - sum_of_logs(sum_of_logs_memo, n / 2);
     }
 }
 

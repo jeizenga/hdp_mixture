@@ -4,8 +4,7 @@
 #include "hdp.h"
 #include "ranlib.h"
 
-int main()
-{
+int main() {
     /*
      * This vignette walks through creating a hierarchical Dirichlet process
      * with this structure:
