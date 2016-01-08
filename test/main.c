@@ -74,7 +74,7 @@ int main() {
     int thinning = 50;
 
     // sample from the posterior distribution of distributions
-    execute_gibbs_sampling(hdp, num_samples, burn_in, thinning);
+    //execute_gibbs_sampling(hdp, num_samples, burn_in, thinning);
 
     // calculate the mean a posteriori estimate of each distribution
     finalize_distributions(hdp);
@@ -92,7 +92,7 @@ int main() {
     int* new_data_pt_dps = data_pt_dps;
 
     pass_data_to_hdp(hdp, new_data, new_data_pt_dps, new_data_length);
-    execute_gibbs_sampling(hdp, num_samples, burn_in, thinning);
+    //execute_gibbs_sampling(hdp, num_samples, burn_in, thinning);
     finalize_distributions(hdp);
 
     // query density values with the new distributions
@@ -100,6 +100,8 @@ int main() {
 
     // free the memory
     destroy_hier_dir_proc(hdp);
+    
+    printf("Hello world!");
 
     return 0;
 }

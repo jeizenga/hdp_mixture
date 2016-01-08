@@ -1,29 +1,50 @@
-GITHUB=/Users/Jordan/Documents/GitHub
-ROOTDIR=${GITHUB}/hdp_mixture
-SONLIBROOT=${GITHUB}/sonLib
-SONLIB=${SONLIBROOT}/lib/
+GITHUBDIR:=/Users/Jordan/Documents/GitHub
+ROOTDIR:=${GITHUBDIR}/hdp_mixture
+SONLIBROOTDIR:=${GITHUBDIR}/sonLib
+SONLIBDIR:=${SONLIBROOTDIR}/lib
+IMPLDIR:=${ROOTDIR}/impl
+INCDIR:=${ROOTDIR}/inc
+BINDIR:=${ROOTDIR}/bin
+LIBDIR:=${ROOTDIR}/lib
+TESTDIR:=${ROOTDIR}/test
+CFLAGS:=-Wall -Wextra -Wpedantic
+INC:=-I${INCDIR} -I${SONLIBDIR}
+SHELL:=/bin/bash
 
-test: 
-	gcc -Wall -c impl/*.c -Iinc -I${SONLIB} -lm
-	ar rcs bin/hdplib.a ./*.o
+all: ${SONLIBDIR}/sonLib.a ${LIBDIR}/hdplib.a ${BINDIR}/main ${BINDIR}/utils_tests
 
-archive:
-	${ar} 
+${SONLIBDIR}/sonLib.a:
+	cd ${SONLIBROOTDIR}
+	make
+	cd ${ROOTDIR}
 
-main:
-	gcc -c -Wall ${CUTEST}cutest.c ${SONLIBC}sonLibList.c ${SONLIBC}sonLibSet.c  hdp_math_utils.c  hdp.c main.c -I${SONLIBC} -I${SONLIBH} -I${CUTEST}
+${LIBDIR}/hdplib.a: ${IMPLDIR}/hdp.c ${IMPLDIR}/hdp_math_utils.c ${IMPLDIR}/ranlib.c ${IMPLDIR}/rnglib.c ${INCDIR}/hdp.h ${INCDIR}/hdp_math_utils.h ${INCDIR}/ranlib.h ${INCDIR}/rnglib.h ${SONLIBDIR}/sonLib.a
+	${CC} ${CFLAGS} -c ${IMPLDIR}/*.c ${SONLIBDIR}/sonLib.a ${INC} -lm
+	ar rcs ${LIBDIR}/hdplib.a ./*.o
+	rm ./*.o
 
-hdp:
-	gcc -c -Wall ${CUTEST}cutest.c hdp.c -I${SONLIBH} -lm -o hdp.o
+${BINDIR}/main: ${TESTDIR}/main.c ${LIBDIR}/hdplib.a
+	${CC} ${CFLAGS} -c ${TESTDIR}/main.c ${INC} -o ${BINDIR}/main
+	chmod +x ${BINDIR}/main
 
-utils:
-	gcc -Wall -c impl/hdp_math_utils.c -Iinc -lm -o bin/hdp_math_utils.o
-
-sonLibList:
-	gcc -c -Wall ${SONLIBC}sonLibList.c -I${SONLIBC} -I${SONLIBH} -I${CUTEST} -o sonLibList.o
-
-sonLibSet:
-	gcc -c -Wall ${SONLIBC}sonLibSet.c -I${SONLIBC} -I${SONLIBH} -I${CUTEST} -o sonLibSet.o
+${BINDIR}/utils_tests: ${TESTDIR}/main.c ${LIBDIR}/hdplib.a
+	${CC} ${CFLAGS} -c ${TESTDIR}/utils_tests.c ${INC} -o ${BINDIR}/utils_tests
+	chmod +x ${BINDIR}/utils_tests
 
 clean:
-	rm ./*.o
+	@if [ $$(find bin -type f | wc -l) -gt 0 ]; \
+	then { \
+		echo "The following will be deleted:"; \
+		echo "------------------------------"; \
+		find $(BINDIR) $(LIBDIR) -type f; \
+		echo "------------------------------"; \
+		read -p "Continue (y/n)? " -n 1 -r CONTINUE; \
+		echo; \
+	}; \
+	else echo "No files to delete."; \
+	fi; \
+	\
+	if [[ $$CONTINUE =~ ^[Yy]$$ ]]; \
+	then find $(BINDIR) $(LIBDIR) -type f -delete; \
+	else echo "Aborted"; \
+	fi;

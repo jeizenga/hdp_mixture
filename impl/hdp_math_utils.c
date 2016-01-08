@@ -9,11 +9,6 @@
 typedef struct LogGammaHalfMemo LogGammaHalfMemo;
 typedef struct SumOfLogsMemo SumOfLogsMemo;
 
-double gamma_func(double x) {
-	fprintf(stderr, "gamma function not implemented");
-	exit(EXIT_FAILURE);
-}
-
 struct LogGammaHalfMemo {
     double alpha;
     double* zero_offset_memo;
@@ -28,13 +23,13 @@ LogGammaHalfMemo* new_log_gamma_memo(double alpha) {
     LogGammaHalfMemo* memo = (LogGammaHalfMemo*) malloc(sizeof(LogGammaHalfMemo));
     memo->alpha = alpha;
     double* zero_base_case = (double*) malloc(sizeof(double));
-    zero_base_case[0] = log(gamma_func(alpha));
+    zero_base_case[0] = lgamma(alpha)c      ;
     memo->zero_offset_final_entry = 0;
     memo->zero_offset_memo = zero_base_case;
     memo->zero_offset_length = 1;
 
     double* half_base_case = (double*) malloc(sizeof(double));
-    half_base_case[0] = log(gamma_func(alpha + .5));
+    half_base_case[0] = lgamma(alpha + .5);
     memo->half_offset_final_entry = 0;
     memo->half_offset_memo = half_base_case;
     memo->half_offset_length = 1;
@@ -96,6 +91,7 @@ void extend_gamma_half_offset_memo(LogGammaHalfMemo* memo) {
     current_array[final_entry] = current_array[final_entry - 1] + log_term;
 }
 
+// returns log(Gamma(memo->alpha + n / 2))
 double offset_log_gamma_half(int n, LogGammaHalfMemo* memo) {
     int idx = n / 2;
     if (n % 2 == 0) {
