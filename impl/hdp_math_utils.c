@@ -2,12 +2,12 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include "hdp_math_utils.h"
 
 #define LOG_ROOT_PI 0.572364942924700087071713
 #define LOG_4 1.386294361119890618834464
 
 typedef struct LogGammaHalfMemo LogGammaHalfMemo;
-typedef struct SumOfLogsMemo SumOfLogsMemo;
 
 struct LogGammaHalfMemo {
     double alpha;
@@ -23,7 +23,7 @@ LogGammaHalfMemo* new_log_gamma_memo(double alpha) {
     LogGammaHalfMemo* memo = (LogGammaHalfMemo*) malloc(sizeof(LogGammaHalfMemo));
     memo->alpha = alpha;
     double* zero_base_case = (double*) malloc(sizeof(double));
-    zero_base_case[0] = lgamma(alpha)c      ;
+    zero_base_case[0] = lgamma(alpha);
     memo->zero_offset_final_entry = 0;
     memo->zero_offset_memo = zero_base_case;
     memo->zero_offset_length = 1;
@@ -160,11 +160,15 @@ double sum_of_logs(SumOfLogsMemo* memo, int n) {
 
 // returns log(Gamma(n / 2)) in amortized constant time with low risk of overflow
 double log_gamma_half(int n, SumOfLogsMemo* sum_of_logs_memo) {
+    if (n <= 2) {
+        fprintf(stderr, "log_gamma_half only supports n > 2\n");
+        exit(EXIT_FAILURE);
+    }
     if (n % 2 == 0) {
         return sum_of_logs(sum_of_logs_memo, n / 2 - 1);
     }
     else {
-        return LOG_ROOT_PI - n * LOG_4 + sum_of_logs(sum_of_logs_memo, n - 1)
+        return LOG_ROOT_PI - (n / 2) * LOG_4 + sum_of_logs(sum_of_logs_memo, n - 1)
                - sum_of_logs(sum_of_logs_memo, n / 2);
     }
 }
@@ -172,7 +176,7 @@ double log_gamma_half(int n, SumOfLogsMemo* sum_of_logs_memo) {
 // quick-select algorithm on array copy (does not alter original array)
 double quickselect(double* arr, int length, int target_idx) {
     if (target_idx < 0 || target_idx >= length) {
-        fprintf(stderr, "Order statistic outside of array bounds");
+        fprintf(stderr, "Order statistic outside of array bounds\n");
         exit(EXIT_FAILURE);
     }
 
@@ -257,13 +261,18 @@ double median(double* arr, int length) {
 // returns the index of the first element of arr greater or equal to x, assuming arr is sorted
 // returns final index if x is greater than all elements of arr
 int bisect_left(double x, double* arr, int length) {
+    if (x <= arr[0]) {
+        return 0;
+    }
     int low = 0;
     int hi = length - 1;
     int mid;
-    while (hi > low) {
+    double arr_mid;
+    while (hi > low + 1) {
         mid = (hi + low) / 2;
-
-        if (x <= arr[mid]) {
+        
+        arr_mid = arr[mid];
+        if (x <= arr_mid) {
             hi = mid;
         }
         else {
@@ -341,6 +350,33 @@ double spline_interp(double query_x, double* x, double* y, double* slope, int le
     }
 }
 
+// assumes even spacing of x points
+double grid_spline_interp(double query_x, double* x, double* y, double* slope, int length) {
+    if (query_x <= x[0]) {
+        return y[0] - slope[0] * (x[0] - query_x);
+    }
+    else if (query_x >= x[length - 1]) {
+        int n = length - 1;
+        return y[n] + slope[n] * (query_x - x[n]);
+    }
+    else {
+        double dx = x[1] - x[0];
+        int idx_left = (int) ((query_x - x[0]) / dx);
+        int idx_right = idx_left + 1;
+        
+        double dy = y[idx_right] - y[idx_left];
+        
+        double a = slope[idx_left] * dx - dy;
+        double b = dy - slope[idx_right] * dx;
+        
+        double t_left = (query_x - x[idx_left]) / dx;
+        double t_right = 1.0 - t_left;
+        
+        return t_right * y[idx_left] + t_left * y[idx_right]
+               + t_left * t_right * (a * t_right + b * t_left);
+    }
+}
+
 double double_max(double a, double b) {
     if (a > b) {
         return a;
@@ -352,7 +388,7 @@ double double_max(double a, double b) {
 
 double* linspace(double start, double stop, int length) {
     if (start >= stop) {
-        fprintf(stderr, "linspace requires stop > start");
+        fprintf(stderr, "linspace requires stop > start\n");
         exit(EXIT_FAILURE);
     }
     double* lin = (double*) malloc(sizeof(double) * length);
@@ -374,7 +410,7 @@ double rand_uniform(double a) {
 }
 
 bool rand_bernoulli(double p) {
-    return rand_standard_uniform() < p;
+    return (rand_standard_uniform() < p);
 }
 
 double rand_exponential(double lambda) {
@@ -384,17 +420,6 @@ double rand_exponential(double lambda) {
     } while (draw == 1.0);
     return -log(1.0 - draw) / lambda;
 }
-//
-//double rand_gamma(double alpha, double beta) {
-//    fprintf(stderr, "Gamma sampling not yet implemented");
-//    exit(EXIT_FAILURE);
-//}
-//
-//double rand_beta(double alpha, double beta) {
-//    double G_alpha = rand_exponential(1.0 / alpha);
-//    double G_beta = rand_exponential(1.0 / beta);
-//    return G_alpha / (G_alpha + G_beta);
-//}
 
 double log_posterior_conditional_term(double nu_post, double two_alpha_post,
                                       double beta_post, SumOfLogsMemo* memo) {

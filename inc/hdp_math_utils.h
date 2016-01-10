@@ -10,6 +10,7 @@ void destroy_log_sum_memo(SumOfLogsMemo* memo);
 
 // returns log(Gamma(n / 2)) in amortized constant time with low risk of overflow
 double log_gamma_half(int n, SumOfLogsMemo* sum_of_logs_memo);
+double sum_of_logs(SumOfLogsMemo* memo, int n);
 
 // quick-select on array copy (does not alter original array)
 double median(double* arr, int length);
@@ -20,6 +21,7 @@ int bisect_left(double x, double* arr, int length);
 
 double* spline_knot_slopes(double* x, double* y, int length);
 double spline_interp(double query_x, double* x, double* y, double* slope, int length);
+double grid_spline_interp(double query_x, double* x, double* y, double* slope, int length);
 
 double double_max(double a, double b);
 

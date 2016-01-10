@@ -3,8 +3,13 @@
 
 typedef struct HierarchicalDirichletProcess HierarchicalDirichletProcess;
 
-HierarchicalDirichletProcess* new_hier_dir_proc(int num_dps, int depth, double* gamma, double* sampling_grid,
-                                                int grid_length, double mu, double nu, double alpha, double beta);
+HierarchicalDirichletProcess* new_hier_dir_proc(int num_dps, int depth, double* gamma, double sampling_grid_start,
+                                                double sampling_grid_stop, int sampling_grid_length, double mu,
+                                                double nu, double alpha, double beta);
+HierarchicalDirichletProcess* new_hier_dir_proc_2(int num_dps, int depth, double* gamma_alpha, double* gamma_beta,
+                                                  double sampling_grid_start, double sampling_grid_stop,
+                                                  int sampling_grid_length, double mu, double nu, double alpha,
+                                                  double beta);
 
 void destroy_hier_dir_proc(HierarchicalDirichletProcess* hdp);
 void set_dir_proc_parent(HierarchicalDirichletProcess* hdp, int child_id, int parent_id);
