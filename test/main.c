@@ -119,9 +119,6 @@ int main(int argc, char* argv[]) {
     int num_dir_proc = 8;
     // the depth of the tree
     int depth = 3;
-    // the innovation parameters at each depth (gamma and alpha_0 in Teh et al)
-    double* gamma = (double*) malloc(sizeof(double) * depth);
-    gamma[0] = 5.0; gamma[1] = 5.0; gamma[2] = 20.0;
 
     // parameters of the normal inverse gamma  base distribution
     double mu = 0.0;
@@ -135,11 +132,30 @@ int main(int argc, char* argv[]) {
     double grid_end = 10.0;
 
     // initialize an HDP
-    HierarchicalDirichletProcess* hdp = new_hier_dir_proc(num_dir_proc, depth, gamma,
-                                                          grid_start, grid_end, grid_length,
-                                                          mu, nu, alpha, beta);
-
+    fprintf(stderr, "Initializing HDP...\n");
+    
+    // choose whether to pre-define concentration parameters (gamma and alpha_0 in Teh et al)
+    // or sample them from a Gamma distribution
+    
+    // the concentration parameters at each depth
+    //double* gamma = (double*) malloc(sizeof(double) * depth);
+    //gamma[0] = 5.0; gamma[1] = 5.0; gamma[2] = 20.0;
+    //HierarchicalDirichletProcess* hdp = new_hier_dir_proc(num_dir_proc, depth, gamma,
+    //                                                      grid_start, grid_end, grid_length,
+    //                                                      mu, nu, alpha, beta);
+    
+    
+    // parameters for distributions of concentration parameters at each depth (gamma and alpha_0 in Teh et al)
+    double* gamma_alpha = (double*) malloc(sizeof(double) * depth);
+    gamma_alpha[0] = 1.0; gamma_alpha[1] = 1.0; gamma_alpha[2] = 2.0;
+    double* gamma_beta = (double*) malloc(sizeof(double) * depth);
+    gamma_beta[0] = 0.2; gamma_beta[1] = 0.2; gamma_beta[2] = 0.1;
+    HierarchicalDirichletProcess* hdp = new_hier_dir_proc_2(num_dir_proc, depth, gamma_alpha,
+                                                            gamma_beta, grid_start, grid_end,
+                                                            grid_length, mu, nu, alpha, beta);
+    
     // establish the topology of the tree
+    fprintf(stderr, "Establishing HDP tree topology...\n");
     set_dir_proc_parent(hdp, 1, 0);
     set_dir_proc_parent(hdp, 2, 0);
     set_dir_proc_parent(hdp, 3, 1);
@@ -150,7 +166,8 @@ int main(int argc, char* argv[]) {
     // note: the result must be a perfectly balanced tree (same depth at every leaf)
     // or you will get an error here
     finalize_hdp_structure(hdp);
-
+    
+    fprintf(stderr, "Loading data from disk...\n");
     double* data;
     int* data_pt_dps;
     int data_length;
@@ -158,6 +175,16 @@ int main(int argc, char* argv[]) {
               "/Users/Jordan/Documents/GitHub/hdp_mixture/test/dps.txt",
               &data, &data_pt_dps, &data_length);
     
+    int new_data_length = data_length / 2;
+    double* new_data = (double*) malloc(sizeof(double) * new_data_length);
+    int* new_data_pt_dps = (int*) malloc(sizeof(int) * new_data_length);
+    
+    for (int i = 0; i < new_data_length; i++) {
+        new_data[i] = data[i] + 1.0;
+        new_data_pt_dps[i] = data_pt_dps[i];
+    }
+    
+    fprintf(stderr, "Giving HDP data...\n");
     pass_data_to_hdp(hdp, data, data_pt_dps, data_length);
     // note: you can also pass data before finalizing the structure
     // note: it is not necessary to observe every Dirichlet process in the data
@@ -166,9 +193,11 @@ int main(int argc, char* argv[]) {
     int thinning = 50;
 
     // sample from the posterior distribution of distributions
+    fprintf(stderr, "Executing Gibbs sampling...\n");
     execute_gibbs_sampling(hdp, num_samples, burn_in, thinning);
 
     // calculate the mean a posteriori estimate of each distribution
+    fprintf(stderr, "Computing mean a posteriori distributions...\n");
     finalize_distributions(hdp);
 
     // query with new values
@@ -177,23 +206,24 @@ int main(int argc, char* argv[]) {
     double density = dir_proc_density(hdp, x, dp_id);
 
     // reset the HDP without needing to re-initialize it and provide new data
+    fprintf(stderr, "Reseting HDP data...\n");
     reset_hdp_data(hdp);
-
-    int new_data_length = data_length / 2;
-    double* new_data = data;
-    int* new_data_pt_dps = data_pt_dps;
-
+    
+    fprintf(stderr, "Giving HDP new data...\n");
     pass_data_to_hdp(hdp, new_data, new_data_pt_dps, new_data_length);
-    //execute_gibbs_sampling(hdp, num_samples, burn_in, thinning);
-    //finalize_distributions(hdp);
+    fprintf(stderr, "Executing Gibbs sampling...\n");
+    execute_gibbs_sampling(hdp, num_samples, burn_in, thinning);
+    fprintf(stderr, "Computing mean a posteriori distributions...\n");
+    finalize_distributions(hdp);
 
     // query density values with the new distributions
     density = dir_proc_density(hdp, 3.4, 6);
 
     // free the memory
+    fprintf(stderr, "Destroying HDP...\n");
     destroy_hier_dir_proc(hdp);
     
-    printf("Hello world!");
+    printf("Completed!\n");
 
     return 0;
 }
