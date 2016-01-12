@@ -467,21 +467,17 @@ double prior_joint_log_likelihood(HierarchicalDirichletProcess* hdp, Factor* fct
 }
 
 double unobserved_factor_likelihood(Factor* fctr, DirichletProcess* dp) {
-    //printf("attempts to get parent dp\n");
     DirichletProcess* parent_dp = dp->parent;
     if (parent_dp == NULL) {
-        //printf("no parent, attempts to compute prior\n");
         return prior_likelihood(dp->hdp, fctr);
     }
     else {
-        //printf("attempts to get parent gamma\n");
         double parent_gamma = *(parent_dp->gamma);
         double likelihood = 0.0;
         
         stSetIterator* parent_fctr_iter = stSet_getIterator(parent_dp->factors);
         Factor* parent_fctr = (Factor*) stSet_getNext(parent_fctr_iter);
         double fctr_size;
-        //printf("attempts to sum up likelihood for data pt factor\n");
         while (parent_fctr != NULL) {
             fctr_size = (double) stSet_size(parent_fctr->children);
             likelihood += fctr_size * data_pt_factor_parent_likelihood(fctr, parent_fctr);
@@ -489,35 +485,26 @@ double unobserved_factor_likelihood(Factor* fctr, DirichletProcess* dp) {
         }
         stSet_destructIterator(parent_fctr_iter);
         
-        //printf("recurses down\n");
         likelihood += parent_gamma * unobserved_factor_likelihood(fctr, parent_dp);
         
-        //printf("exits recursion, attempts to normalize likelihood\n");
         likelihood /= (parent_gamma + (double) parent_dp->num_factor_children);
         
-        //if (likelihood == 0.0) {
-        //    fprintf(stderr, "Likelihood of unobserved factor calculated to be 0.0 on data point factor, probably experiencing underflow.\n");
-        //}
         return likelihood;
     }
 }
 
 double unobserved_factor_joint_log_likelihood(Factor* fctr, DirichletProcess* dp) {
-    //printf("attempts to get parent dp\n");
     DirichletProcess* parent_dp = dp->parent;
     if (parent_dp == NULL) {
-        //printf("no parent, attempts to compute prior\n");
         return prior_joint_log_likelihood(dp->hdp, fctr);
     }
     else {
-        //printf("attempts to get parent gamma\n");
         double parent_gamma = *(parent_dp->gamma);
         
         double log_likelihood = MINUS_INF;
         stSetIterator* parent_fctr_iter = stSet_getIterator(parent_dp->factors);
         Factor* parent_fctr = (Factor*) stSet_getNext(parent_fctr_iter);
         double log_fctr_size;
-        //printf("attempts to sum up likelihood for middle factor\n");
         while (parent_fctr != NULL) {
             log_fctr_size = log((double) stSet_size(parent_fctr->children));
             log_likelihood = add_logs(log_likelihood,
@@ -526,16 +513,11 @@ double unobserved_factor_joint_log_likelihood(Factor* fctr, DirichletProcess* dp
         }
         stSet_destructIterator(parent_fctr_iter);
         
-        //printf("recurses down\n");
         log_likelihood = add_logs(log_likelihood,
                                   log(parent_gamma) + unobserved_factor_joint_log_likelihood(fctr, parent_dp));
         
-        //printf("exits recursion, attempts to normalize likelihood\n");
         log_likelihood -= log(parent_gamma + (double) parent_dp->num_factor_children);
         
-        //if (log_likelihood < 0.0) {
-        //   fprintf(stderr, "Likelihood of unobserved factor calculated to be 0.0 on middle factor, probably experiencing underflow.\n");
-        //}
         return log_likelihood;
     }
 }
@@ -563,31 +545,25 @@ DirichletProcess* new_dir_proc() {
 }
 
 void clear_factor_tree(Factor* fctr) {
-    //printf("enters clear factor tree function\n");
     if (fctr->children != NULL) {
         stSetIterator* child_fctr_iter = stSet_getIterator(fctr->children);
         Factor* child_fctr = (Factor*) stSet_getNext(child_fctr_iter);
         while (child_fctr != NULL) {
-            //printf("recurses down\n");
             clear_factor_tree(child_fctr);
-            //printf("exits recursion\n");
             child_fctr = (Factor*) stSet_getNext(child_fctr_iter);
         }
         stSet_destructIterator(child_fctr_iter);
     }
     else {
+        // note: this will trigger automatic destruction of parent factors
         destroy_factor(fctr);
     }
-    
-    //printf("attempts to destroy factor\n");
-    
 }
 
 void destroy_dir_proc_factor_tree(DirichletProcess* dp) {
     if (stSet_size(dp->factors) == 0) {
         return;
     }
-    //printf("enters destroy DP tree function\n");
     stSetIterator* fctr_iter = stSet_getIterator(dp->factors);
     Factor* fctr = (Factor*) stSet_getNext(fctr_iter);
     while (fctr != NULL) {
@@ -744,29 +720,17 @@ HierarchicalDirichletProcess* new_hier_dir_proc_2(int num_dps, int depth, double
 }
 
 void destroy_hier_dir_proc(HierarchicalDirichletProcess* hdp) {
-    //printf("1\n");
     destroy_dir_proc(hdp->base_dp);
-    //printf("2\n");
     free(hdp->gamma);
-    //printf("3\n");
     free(hdp->data);
-    //printf("4\n");
     free(hdp->data_pt_dp_id);
-    //printf("5\n");
     free(hdp->dps);
-    //printf("6\n");
     free(hdp->sampling_grid);
-    //printf("7\n");
     destroy_log_sum_memo(hdp->log_sum_memo);
-    //printf("8\n");
     free(hdp->gamma_alpha);
-    //printf("9\n");
     free(hdp->gamma_beta);
-    //printf("10\n");
     free(hdp->w_aux_vector);
-    //printf("11\n");
     free(hdp->s_aux_vector);
-    //printf("12\n");
     free(hdp);
 }
 
@@ -1000,8 +964,6 @@ void init_factors(HierarchicalDirichletProcess* hdp) {
 
         dp->num_factor_children = fctr_child_count;
     }
-    
-    //printf("base dp starts with count %d\n", hdp->base_dp->num_factor_children);
 }
 
 void finalize_data(HierarchicalDirichletProcess* hdp) {
@@ -1065,7 +1027,6 @@ void reset_hdp_data(HierarchicalDirichletProcess* hdp) {
         return;
     }
     
-    //printf("attempt to free data and dp ids\n");
     free(hdp->data);
     hdp->data = NULL;
 
@@ -1075,11 +1036,8 @@ void reset_hdp_data(HierarchicalDirichletProcess* hdp) {
     DirichletProcess** dps = hdp->dps;
     int num_dps = hdp->num_dps;
     
-    //printf("attempt to clear factor tree\n");
-    
     destroy_dir_proc_factor_tree(hdp->base_dp);
     
-    //printf("attempt to clear sampled distributions\n");
     DirichletProcess* dp;
     for (int i = 0; i < num_dps; i++) {
         dp = dps[i];
@@ -1098,7 +1056,6 @@ void reset_hdp_data(HierarchicalDirichletProcess* hdp) {
     hdp->samples_taken = 0;
     
     if (hdp->sample_gamma) {
-        //printf("attempt to reset gamma and auxilliary variables\n");
         double* gamma = hdp->gamma;
         double* gamma_alpha = hdp->gamma_alpha;
         double* gamma_beta = hdp->gamma_beta;
@@ -1122,21 +1079,15 @@ void unassign_from_parent(Factor* fctr) {
         fprintf(stderr, "Cannot unassign base factor's parent.\n");
         exit(EXIT_FAILURE);
     }
-    //printf("attempts to get parent\n");
     Factor* parent = fctr->parent;
-    //printf("attempts to get base factor\n");
     Factor* base_fctr = get_base_factor(parent);
-    //printf("attempts to get base dp\n");
     DirichletProcess* base_dp = base_fctr->dp;
     
-    //printf("attempts to remove from parent's children\n");
     stSet_remove(parent->children, (void*) fctr);
     fctr->parent = NULL;
-    //printf("attempts to decrement count\n");
     (parent->dp->num_factor_children)--;
     
     if (stSet_size(parent->children) == 0) {
-        //printf("attempts to destroy parent\n");
         destroy_factor(parent);
     }
 
@@ -1144,16 +1095,13 @@ void unassign_from_parent(Factor* fctr) {
     double mean_reassign;
     double sum_sq_devs;
     
-    //printf("attempts to get factor stats\n");
     get_factor_stats(fctr, &mean_reassign, &sum_sq_devs, &num_reassign);
     
     // check to see if base factor has been destroyed
     if (stSet_search(base_dp->factors, (void*) base_fctr) != NULL) {
-        //printf("attempts to update base factor params\n");
         remove_update_base_factor_params(base_fctr, mean_reassign, sum_sq_devs, (double) num_reassign);
     }
     
-    //printf("attempts to cache stats in dp\n");
     DirichletProcess* dp = fctr->dp;
     if (dp != NULL) {
         dp->cached_factor_mean = mean_reassign;
@@ -1199,21 +1147,17 @@ Factor* sample_from_data_pt_factor(Factor* fctr, DirichletProcess* dp) {
         exit(EXIT_FAILURE);
     }
     
-    //printf("attempt to get pool of parents to sample\n");
     stSet* pool = dp->factors;
     int num_fctrs = stSet_size(pool);
     
-    //printf("attempt to malloc arrays\n");
     Factor** fctr_order = (Factor**) malloc(sizeof(Factor*) * num_fctrs);
 
     double* cdf = (double*) malloc(sizeof(double) * (num_fctrs + 1));
     double cumul = 0.0;
 
-    //printf("attempt to get iterator\n");
     stSetIterator* pool_iter = stSet_getIterator(pool);
     Factor* fctr_option;
     double fctr_size;
-    //printf("attempt to compute cdf and get factor order\n");
     for (int i = 0; i < num_fctrs; i++) {
         fctr_option = (Factor*) stSet_getNext(pool_iter);
         fctr_order[i] = fctr_option;
@@ -1224,13 +1168,10 @@ Factor* sample_from_data_pt_factor(Factor* fctr, DirichletProcess* dp) {
     }
     stSet_destructIterator(pool_iter);
     
-    //printf("attempt to get gamma\n");
     double gamma_param = *(dp->gamma);
-    //printf("attempt to compute unobserved factor likelihood\n");
     cumul += gamma_param * unobserved_factor_likelihood(fctr, dp);
     cdf[num_fctrs] = cumul;
     
-    //printf("attempt to choose a factor\n");
     int choice_idx = bisect_left(rand_uniform(cumul), cdf, num_fctrs + 1);
     free(cdf);
     
@@ -1238,11 +1179,9 @@ Factor* sample_from_data_pt_factor(Factor* fctr, DirichletProcess* dp) {
     if (choice_idx == num_fctrs) {
         DirichletProcess* parent_dp = dp->parent;
         if (parent_dp == NULL) {
-            //printf("attempt to make new base factor\n");
             fctr_choice = new_base_factor(dp->hdp);
         }
         else {
-            //printf("attempt to make a new middle factor\n");
             fctr_choice = new_middle_factor(dp);
             Factor* new_fctr_parent = sample_from_data_pt_factor(fctr, parent_dp);
             assign_to_parent(fctr_choice, new_fctr_parent);
@@ -1323,11 +1262,9 @@ Factor* sample_from_middle_factor(Factor* fctr, DirichletProcess* dp) {
 
 Factor* sample_factor(Factor* fctr, DirichletProcess* dp) {
     if (fctr->factor_type == DATA_PT) {
-        //printf("attempt to sample parent of data pt factor\n");
         return sample_from_data_pt_factor(fctr, dp);
     }
     else if (fctr->factor_type == MIDDLE) {
-        //printf("attempt to sample parent of middle factor\n");
         return sample_from_middle_factor(fctr, dp);
     }
     else {
@@ -1337,15 +1274,10 @@ Factor* sample_factor(Factor* fctr, DirichletProcess* dp) {
 }
 
 void gibbs_factor_iteration(Factor* fctr) {
-    //printf("begins gibbs iteration\n");
     DirichletProcess* parent_dp = fctr->parent->dp;
-    //printf("going to sample from factors in dp with id = %d\n", parent_dp->id);
     unassign_from_parent(fctr);
-    //printf("finishes unassignment\n");
     Factor* new_parent = sample_factor(fctr, parent_dp);
-    //printf("finishes sampling parents\n");
     assign_to_parent(fctr, new_parent);
-    //printf("finishes gibbs iteration by assigning to parent\n");
 }
 
 void cache_prior_contribution(DirichletProcess* dp, double parent_prior_prod) {
@@ -1369,18 +1301,12 @@ void cache_prior_contribution(DirichletProcess* dp, double parent_prior_prod) {
 void cache_base_factor_weight(Factor* fctr) {
     DirichletProcess* dp = fctr->dp;
     
-    //printf("attempt to get gamma at depth %d\n", dp->depth);
     double gamma_param = *(dp->gamma);
-    //printf("attempt to get dp size\n");
     double total_children = (double) dp->num_factor_children;
-    //printf("attempt to calc weight\n");;
     double wt = ((double) stSet_size(fctr->children)) / (gamma_param + total_children);
-    //printf("attempt to store weight\n");
     dp->base_factor_wt += wt;
     
-    // stop pushing the weight cache before reaching data point factors
     if (stList_length(dp->children) > 0) {
-        //printf("attempt to store in cache\n");
         stSetIterator* child_fctr_iter = stSet_getIterator(fctr->children);
         Factor* child_fctr = (Factor*) stSet_getNext(child_fctr_iter);
         while (child_fctr != NULL) {
@@ -1389,7 +1315,6 @@ void cache_base_factor_weight(Factor* fctr) {
         }
         stSet_destructIterator(child_fctr_iter);
         
-        //printf("attempt cache prior portion\n");
         stListIterator* child_dp_iter = stList_getIterator(dp->children);
         DirichletProcess* child_dp = (DirichletProcess*) stList_getNext(child_dp_iter);
         while (child_dp != NULL) {
@@ -1424,7 +1349,6 @@ void push_factor_distr(DirichletProcess* dp, double* distr, int length) {
 void take_distr_sample(HierarchicalDirichletProcess* hdp) {
     DirichletProcess* base_dp = hdp->base_dp;
 
-    //printf("OOO attempt to allocate vectors\n");
     double* grid = hdp->sampling_grid;
     int length = hdp->grid_length;
     double* pdf = (double*) malloc(sizeof(double) * length);
@@ -1434,22 +1358,16 @@ void take_distr_sample(HierarchicalDirichletProcess* hdp) {
     stSetIterator* base_fctr_iter = stSet_getIterator(base_dp->factors);
     Factor* base_fctr = (Factor*) stSet_getNext(base_fctr_iter);
     while (base_fctr != NULL) {
-        //printf("OOO attempt to cache weight\n");
         cache_base_factor_weight(base_fctr);
-        //printf("OOO attempt to eval post pred\n");
         evaluate_posterior_predictive(base_fctr, grid, pdf, length, log_sum_memo);
-        //printf("OOO attempt to push distr\n");
         push_factor_distr(base_dp, pdf, length);
 
         base_fctr = (Factor*) stSet_getNext(base_fctr_iter);
     }
     stSet_destructIterator(base_fctr_iter);
     
-    //printf("OOO attempt to cache prior weight\n");
     cache_prior_contribution(base_dp, 1.0);
-    //printf("OOO attempt to eval prior pred\n");
     evaluate_prior_predictive(hdp, grid, pdf, length);
-    //printf("OOO attempt to push prior distr\n");
     push_factor_distr(base_dp, pdf, length);
 
     (hdp->samples_taken)++;
@@ -1461,7 +1379,6 @@ void take_distr_sample(HierarchicalDirichletProcess* hdp) {
 DirichletProcess** get_shuffled_dps(HierarchicalDirichletProcess* hdp) {
     int num_dps = hdp->num_dps;
     DirichletProcess** dps = hdp->dps;
-    //printf("+++ shuffling the dps in array at memory location %p\n", dps);
     DirichletProcess** shuffled_dps = (DirichletProcess**) malloc(sizeof(DirichletProcess*) * num_dps);
     int pos;
     for (int i = 0; i < num_dps; i++) {
@@ -1593,8 +1510,6 @@ void sample_gammas(HierarchicalDirichletProcess* hdp, int* iter_counter, int bur
                    int thinning, int* sample_counter, int num_samples) {
     int iter = *iter_counter;
     int samples_taken = *sample_counter;
-    
-    //printf("start sampling gammas\n");
 
     int tree_depth = hdp->depth;
     double* w = hdp->w_aux_vector;
@@ -1687,7 +1602,6 @@ double* snapshot_gamma_params(HierarchicalDirichletProcess* hdp, int* length_out
 }
 
 double snapshot_factor_log_likelihood(Factor* fctr) {
-    //printf("attempts to snapshot log like for factor\n");
     
     double parent_prob;
     double cumul = 0.0;
@@ -1721,16 +1635,12 @@ double snapshot_factor_log_likelihood(Factor* fctr) {
         cumul += gamma_param * unobserved_factor_likelihood(fctr, parent_dp);
     }
     else {
-        //printf("attempts to get dp\n");
         DirichletProcess* dp = fctr->dp;
-        //printf("attempts to get parent dp\n");
         DirichletProcess* parent_dp = dp->parent;
-        //printf("attempts to get parent factor\n");
         Factor* parent_fctr = fctr->parent;
         
         double mean, sum_sq_devs;
         int num_data;
-        //printf("attempts to get factor stats\n");
         get_factor_stats(fctr, &mean, &sum_sq_devs, &num_data);
         
         dp->cached_factor_mean = mean;
@@ -1741,10 +1651,8 @@ double snapshot_factor_log_likelihood(Factor* fctr) {
         int num_fctrs = stSet_size(pool);
         int num_choices = num_fctrs + 1;
         
-        //printf("attempts to malloc log probs\n");
         double* log_probs = (double*) malloc(sizeof(double) * num_choices);
         
-        //printf("attempts get fill log prob array\n");
         stSetIterator* pool_iter = stSet_getIterator(pool);
         Factor* fctr_option;
         double log_prob;
@@ -1752,21 +1660,16 @@ double snapshot_factor_log_likelihood(Factor* fctr) {
         double fctr_size;
         for (int i = 0; i < num_fctrs; i++) {
             fctr_option = (Factor*) stSet_getNext(pool_iter);
-            //printf("attempts get factor size from factor at memory location %p\n", fctr_option);
             fctr_size = (double) stSet_size(fctr_option->children);
-            //printf("attempts get log likelihood\n");
             log_prob = factor_parent_joint_log_likelihood(fctr, fctr_option) + log(fctr_size);
-            //printf("attempts to enter log like\n");
             log_probs[i] = log_prob;
             if (fctr_option == parent_fctr) {
-                //printf("attempts to store parent log prob\n");
                 parent_log_prob = log_prob;
             }
             
         }
         stSet_destructIterator(pool_iter);
         
-        //printf("attempts to get unobserved factor likelihood\n");
         double gamma_param = *(dp->gamma);
         log_probs[num_fctrs] = unobserved_factor_joint_log_likelihood(fctr, parent_dp) + log(gamma_param);
         
@@ -1774,7 +1677,6 @@ double snapshot_factor_log_likelihood(Factor* fctr) {
         
         parent_prob = exp(parent_log_prob - normalizing_const);
         
-        //printf("attempts to calc cumul\n");
         for (int i = 0; i < num_choices; i++) {
             cumul += exp(log_probs[i] - normalizing_const);;
         }
@@ -1782,6 +1684,7 @@ double snapshot_factor_log_likelihood(Factor* fctr) {
         free(log_probs);
     }
     
+    // TODO: this is a hack, makes it inaccurate for the early iterations
     if (parent_prob == 0.0) {
         return 0.0;
     }
@@ -1789,53 +1692,26 @@ double snapshot_factor_log_likelihood(Factor* fctr) {
 }
 
 double snapshot_dir_proc_log_likelihood(DirichletProcess* dp) {
-    //printf("@@@ attempts to snapshot log like for dp with id %d at memory location %p\n", dp->id, dp);
     double log_likelihood = 0.0;
     
-    //printf("@@@ attempts to get factor iterator\n");
     stSetIterator* fctr_iter = stSet_getIterator(dp->factors);
     Factor* fctr = (Factor*) stSet_getNext(fctr_iter);
     
     stSetIterator* child_fctr_iter;
     Factor* child_fctr;
     while (fctr != NULL) {
-        //printf("@@@ attempts to get child iterator\n");
         child_fctr_iter = stSet_getIterator(fctr->children);
         child_fctr = (Factor*) stSet_getNext(child_fctr_iter);
         while (child_fctr != NULL) {
-            //printf("@@@ attempts to get factor log likelihood\n");
             log_likelihood += snapshot_factor_log_likelihood(child_fctr);
-            //printf("@@@ attempts to get next child factor\n");
             child_fctr = (Factor*) stSet_getNext(child_fctr_iter);
         }
         stSet_destructIterator(child_fctr_iter);
         fctr = (Factor*) stSet_getNext(fctr_iter);
     }
     stSet_destructIterator(fctr_iter);
-    //printf("%lf\n", log_likelihood);
     return log_likelihood;
 }
-
-//int num_dps = hdp->num_dps;
-//DirichletProcess** dps = hdp->dps;
-//DirichletProcess* dp;
-//double* distr;
-//for (int id = 0; id < num_dps; id++){
-//    dp = dps[id];
-//    if (!dp->observed) {
-//        continue;
-//    }
-//
-//    distr = dp->posterior_predictive;
-//
-//    for (int i = 0; i < grid_length; i++) {
-//        distr[i] = distr[i] * inv_sample_size;
-//    }
-//
-//    dp->spline_slopes = spline_knot_slopes(grid, distr, grid_length);
-//}
-//
-//hdp->splines_finalized = true;
 
 double snapshot_log_likelihood(HierarchicalDirichletProcess* hdp) {
     
@@ -1861,11 +1737,8 @@ double snapshot_log_likelihood(HierarchicalDirichletProcess* hdp) {
 void take_snapshot(HierarchicalDirichletProcess* hdp, int** num_dp_fctrs_out, int* num_dps_out,
                    double** gamma_params_out, int* num_gamma_params_out, double* log_likelihood_out) {
     
-    //printf("^^^ attempts to snapshot num factors\n");
     *num_dp_fctrs_out = snapshot_num_factors(hdp, num_dps_out);
-    //printf("^^^ attempts to snapshot gammas\n");
     *gamma_params_out = snapshot_gamma_params(hdp, num_gamma_params_out);
-    //printf("^^^ attempts to snapshot log likelihood\n");
     *log_likelihood_out = snapshot_log_likelihood(hdp);
 }
 
@@ -1883,8 +1756,6 @@ void execute_gibbs_sampling_with_snapshots(HierarchicalDirichletProcess* hdp, in
         exit(EXIT_FAILURE);
     }
     
-    //printf("*** enters sampling function\n");
-    
     int iter_counter = 0;
     int sample_counter = 0;
     int num_dps = hdp->num_dps;
@@ -1899,7 +1770,6 @@ void execute_gibbs_sampling_with_snapshots(HierarchicalDirichletProcess* hdp, in
         sampling_dps = get_shuffled_dps(hdp);
 
         for (int i = 0; i < num_dps; i++) {
-            //printf("*** attempt to sample from dp %d\n", (sampling_dps[i])->id);
             sample_dp_factors(sampling_dps[i], &iter_counter, burn_in, thinning,
                               &sample_counter, num_samples);
             if (sample_counter >= num_samples) {
@@ -1909,7 +1779,6 @@ void execute_gibbs_sampling_with_snapshots(HierarchicalDirichletProcess* hdp, in
 
         free(sampling_dps);
 
-        //printf("***sampling gamma params\n");
         if (hdp->sample_gamma && sample_counter < num_samples) {
             sample_gamma_params(hdp, &iter_counter, burn_in, thinning, &sample_counter,
                                 num_samples);
