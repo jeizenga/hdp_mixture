@@ -173,6 +173,17 @@ double log_gamma_half(int n, SumOfLogsMemo* sum_of_logs_memo) {
     }
 }
 
+
+// returns log(x + y) without leaving log transformed space
+double add_logs(double log_x, double log_y) {
+    if (log_x > log_y) {
+        return log_x + log(1.0 + exp(log_y - log_x));
+    }
+    else {
+        return log_y + log(1.0 + exp(log_x - log_y));
+    }
+}
+
 // quick-select algorithm on array copy (does not alter original array)
 double quickselect(double* arr, int length, int target_idx) {
     if (target_idx < 0 || target_idx >= length) {
@@ -257,6 +268,15 @@ double median(double* arr, int length) {
     return quickselect(arr, length, length / 2);
 }
 
+double max(double* arr, int length) {
+    double curr_max = arr[0];
+    for (int i = 1; i < length; i++) {
+        if (arr[i] > curr_max) {
+            curr_max = arr[i];
+        }
+    }
+    return curr_max;
+}
 
 // returns the index of the first element of arr greater or equal to x, assuming arr is sorted
 // returns final index if x is greater than all elements of arr
@@ -374,15 +394,6 @@ double grid_spline_interp(double query_x, double* x, double* y, double* slope, i
         
         return t_right * y[idx_left] + t_left * y[idx_right]
                + t_left * t_right * (a * t_right + b * t_left);
-    }
-}
-
-double double_max(double a, double b) {
-    if (a > b) {
-        return a;
-    }
-    else {
-        return b;
     }
 }
 

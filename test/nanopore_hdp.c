@@ -145,6 +145,14 @@ void update_hdp_from_alignment(HierarchicalDirichletProcess* hdp, const char* al
 
 
 
+HierarchicalDirichletProcess* multiset_hdp_model() {
+    
+}
+
+HierarchicalDirichletProcess* middle_nts_hdp_model() {
+    
+}
+
 
 
 

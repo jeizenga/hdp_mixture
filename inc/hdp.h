@@ -17,7 +17,13 @@ void finalize_hdp_structure(HierarchicalDirichletProcess* hdp);
 void pass_data_to_hdp(HierarchicalDirichletProcess* hdp, double* data, int* dp_id, int length);
 void reset_hdp_data(HierarchicalDirichletProcess* hdp);
 void execute_gibbs_sampling(HierarchicalDirichletProcess* hdp, int num_samples, int burn_in, int thinning);
+void execute_gibbs_sampling_with_snapshots(HierarchicalDirichletProcess* hdp,
+                                           int num_samples, int burn_in, int thinning,
+                                           void (*snapshot_func)(HierarchicalDirichletProcess*, void*),
+                                           void* snapshot_func_args);
 void finalize_distributions(HierarchicalDirichletProcess* hdp);
 double dir_proc_density(HierarchicalDirichletProcess* hdp, double x, int dp_id);
+void take_snapshot(HierarchicalDirichletProcess* hdp, int** num_dp_fctrs_out, int* num_dps_out,
+                   double** gamma_params_out, int* num_gamma_params_out, double* log_likelihood_out);
 
 #endif // HDP_H_INCLUDED

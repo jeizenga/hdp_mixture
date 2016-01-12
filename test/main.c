@@ -89,6 +89,97 @@ void load_data(const char* data_filepath, const char* dp_id_filepath,
     fclose(dp_id_file);
 }
 
+void write_double_data(FILE* f, double* data, int length) {
+    if (length <= 0) {
+        return;
+    }
+    fprintf(f, "%lf", data[0]);
+    for (int i = 1; i < length; i++) {
+        fprintf(f, "\n%lf", data[i]);
+    }
+}
+
+void write_int_data(FILE* f, int* data, int length) {
+    if (length <= 0) {
+        return;
+    }
+    fprintf(f, "%d", data[0]);
+    for (int i = 1; i < length; i++) {
+        fprintf(f, "\n%d", data[i]);
+    }
+}
+
+void output_distrs_to_disk(HierarchicalDirichletProcess* hdp, double* grid, int grid_length, int num_dps) {
+    FILE* x = fopen("x_vals.txt", "w");
+    write_double_data(x, grid, grid_length);
+    fclose(x);
+    
+    char file_name[30];
+    
+    double* pdf = (double*) malloc(sizeof(double) * grid_length);
+    for (int i = 0; i < num_dps; i++) {
+        for (int j = 0; j < grid_length; j++) {
+            pdf[j] = dir_proc_density(hdp, grid[j], i);
+        }
+        sprintf(file_name, "dp_%d_distr.txt", i);
+        FILE* out = fopen(file_name, "w");
+        write_double_data(out, pdf, grid_length);
+        fclose(out);
+    }
+    free(pdf);
+}
+
+typedef struct SnapshotArgs {
+    const char* num_dp_factors_filepath;
+    const char* gamma_params_filepath;
+    const char* log_likelihood_filepath;
+} SnapshotArgs;
+
+SnapshotArgs make_snapshot_args(const char* num_dp_factors_filepath,
+                                const char* gamma_params_filepath,
+                                const char* log_likelihood_filepath) {
+    SnapshotArgs args;
+    args.num_dp_factors_filepath = num_dp_factors_filepath;
+    args.gamma_params_filepath = gamma_params_filepath;
+    args.log_likelihood_filepath = log_likelihood_filepath;
+    return args;
+}
+
+void record_snapshots_to_files(HierarchicalDirichletProcess* hdp, void* snapshot_args_void_ptr) {
+    SnapshotArgs* snapshot_args_ptr = (SnapshotArgs*) snapshot_args_void_ptr;
+    SnapshotArgs snapshot_args = *snapshot_args_ptr;
+    
+    FILE* num_dp_factors_file = fopen(snapshot_args.num_dp_factors_filepath, "a");
+    FILE* gamma_params_file = fopen(snapshot_args.gamma_params_filepath, "a");
+    FILE* log_likelihood_file = fopen(snapshot_args.log_likelihood_filepath, "a");
+    
+    int* num_dp_factors;
+    int num_dps;
+    
+    double* gamma_params;
+    int num_gamma_params;
+    
+    double log_likelihood;
+    
+    take_snapshot(hdp, &num_dp_factors, &num_dps, &gamma_params, &num_gamma_params, &log_likelihood);
+    
+    fprintf(log_likelihood_file, "%lf\n", log_likelihood);
+    
+    for (int i = 0; i < num_gamma_params - 1; i++) {
+        fprintf(gamma_params_file, "%lf\t", gamma_params[i]);
+    }
+    fprintf(gamma_params_file, "%lf\n", gamma_params[num_gamma_params - 1]);
+    
+    for (int i = 0; i < num_dps - 1; i++) {
+        fprintf(num_dp_factors_file, "%d\t", num_dp_factors[i]);
+    }
+    fprintf(num_dp_factors_file, "%d\n", num_dp_factors[num_dps - 1]);
+    
+    fclose(num_dp_factors_file);
+    fclose(gamma_params_file);
+    fclose(log_likelihood_file);
+}
+
 
 
 int main(int argc, char* argv[]) {
@@ -122,8 +213,8 @@ int main(int argc, char* argv[]) {
 
     // parameters of the normal inverse gamma  base distribution
     double mu = 0.0;
-    double nu = 10.0;
-    double alpha = 10.0; // note: this parameter must be integer or half-integer valued
+    double nu = 1.0;
+    double alpha = 2.0; // note: this parameter must be integer or half-integer valued
     double beta = 10.0;
 
     // the grid along which the HDP will record distribution samples
@@ -137,15 +228,15 @@ int main(int argc, char* argv[]) {
     // choose whether to pre-define concentration parameters (gamma and alpha_0 in Teh et al)
     // or sample them from a Gamma distribution
     
-    // the concentration parameters at each depth
-    //double* gamma = (double*) malloc(sizeof(double) * depth);
-    //gamma[0] = 5.0; gamma[1] = 5.0; gamma[2] = 20.0;
-    //HierarchicalDirichletProcess* hdp = new_hier_dir_proc(num_dir_proc, depth, gamma,
-    //                                                      grid_start, grid_end, grid_length,
-    //                                                      mu, nu, alpha, beta);
+//    // pre-define the concentration parameters at each depth
+//    double* gamma = (double*) malloc(sizeof(double) * depth);
+//    gamma[0] = 10.0; gamma[1] = 10.0; gamma[2] = 10.0;
+//    HierarchicalDirichletProcess* hdp = new_hier_dir_proc(num_dir_proc, depth, gamma,
+//                                                          grid_start, grid_end, grid_length,
+//                                                          mu, nu, alpha, beta);
     
     
-    // parameters for distributions of concentration parameters at each depth (gamma and alpha_0 in Teh et al)
+    // parameters for distributions of concentration parameters at each depth
     double* gamma_alpha = (double*) malloc(sizeof(double) * depth);
     gamma_alpha[0] = 1.0; gamma_alpha[1] = 1.0; gamma_alpha[2] = 2.0;
     double* gamma_beta = (double*) malloc(sizeof(double) * depth);
@@ -188,13 +279,27 @@ int main(int argc, char* argv[]) {
     pass_data_to_hdp(hdp, data, data_pt_dps, data_length);
     // note: you can also pass data before finalizing the structure
     // note: it is not necessary to observe every Dirichlet process in the data
-    int num_samples = 1000;
-    int burn_in = 10000;
-    int thinning = 50;
+    
+    int num_samples = 15000;
+    int burn_in = 100000;
+    int thinning = 100;
 
-    // sample from the posterior distribution of distributions
-    fprintf(stderr, "Executing Gibbs sampling...\n");
-    execute_gibbs_sampling(hdp, num_samples, burn_in, thinning);
+    // choose whether to Gibbs sample only the distributions or to also supply a
+    // snapshot function that samples at the beginning of each Gibbs sweep
+    
+    // sample with a snapshot function
+    fprintf(stderr, "Making snapshot args...\n");
+    SnapshotArgs filepaths = make_snapshot_args("num_dp_factors.txt",
+                                                "gamma_params.txt",
+                                                "log_likelihood.txt");
+    
+    fprintf(stderr, "Executing Gibbs sampling and recording snapshots...\n");
+    execute_gibbs_sampling_with_snapshots(hdp, num_samples, burn_in, thinning,
+                                          &record_snapshots_to_files, (void*) &filepaths);
+    
+//    // sample without a snapshot function
+//    fprintf(stderr, "Executing Gibbs sampling without snapshots...\n");
+//    execute_gibbs_sampling(hdp, num_samples, burn_in, thinning);
 
     // calculate the mean a posteriori estimate of each distribution
     fprintf(stderr, "Computing mean a posteriori distributions...\n");
@@ -205,19 +310,29 @@ int main(int argc, char* argv[]) {
     int dp_id = 4;
     double density = dir_proc_density(hdp, x, dp_id);
 
+    int x_len = 200;
+    double x_start = -10.0;
+    double x_end = 10.0;
+    double* x_vals = (double*) malloc(sizeof(double) * x_len);
+    for (int i = 0; i < x_len; i++) {
+        x_vals[i] = x_start + ((double) i) * (x_end - x_start) / ((double) (x_len - 1));
+    }
+
+    output_distrs_to_disk(hdp, x_vals, x_len, num_dir_proc);
+
     // reset the HDP without needing to re-initialize it and provide new data
     fprintf(stderr, "Reseting HDP data...\n");
     reset_hdp_data(hdp);
     
     fprintf(stderr, "Giving HDP new data...\n");
     pass_data_to_hdp(hdp, new_data, new_data_pt_dps, new_data_length);
-    fprintf(stderr, "Executing Gibbs sampling...\n");
+    fprintf(stderr, "Executing Gibbs sampling without snapshots...\n");
     execute_gibbs_sampling(hdp, num_samples, burn_in, thinning);
     fprintf(stderr, "Computing mean a posteriori distributions...\n");
     finalize_distributions(hdp);
 
     // query density values with the new distributions
-    density = dir_proc_density(hdp, 3.4, 6);
+    double new_density = dir_proc_density(hdp, 3.4, 6);
 
     // free the memory
     fprintf(stderr, "Destroying HDP...\n");

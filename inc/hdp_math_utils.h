@@ -12,8 +12,11 @@ void destroy_log_sum_memo(SumOfLogsMemo* memo);
 double log_gamma_half(int n, SumOfLogsMemo* sum_of_logs_memo);
 double sum_of_logs(SumOfLogsMemo* memo, int n);
 
+// returns log(x + y) without leaving log transformed space
+double add_logs(double log_x, double log_y);
 // quick-select on array copy (does not alter original array)
 double median(double* arr, int length);
+double max(double* arr, int length);
 
 // returns the index of the first element of arr greater or equal to x, assuming arr is sorted
 // returns final index if x is greater than all elements of arr
@@ -23,8 +26,6 @@ double* spline_knot_slopes(double* x, double* y, int length);
 double spline_interp(double query_x, double* x, double* y, double* slope, int length);
 double grid_spline_interp(double query_x, double* x, double* y, double* slope, int length);
 
-double double_max(double a, double b);
-
 double* linspace(double start, double stop, int length);
 
 double rand_uniform(double a);
@@ -32,6 +33,7 @@ double rand_beta(double a, double b);
 bool rand_bernoulli(double p);
 
 // explained further in Jordan's math notebook section "Cached variables for improved performance"
-double log_posterior_conditional_term(double nu_post, double two_alpha_post, double beta_post, SumOfLogsMemo* memo);
+double log_posterior_conditional_term(double nu_post, double two_alpha_post, double beta_post,
+                                      SumOfLogsMemo* memo);
 
 #endif // HDP_MATH_UTILS_H_INCLUDED
