@@ -262,7 +262,7 @@ int* get_kmer_multiset(int kmer_id, int alphabet_size, int kmer_length) {
     return multiset;
 }
 
-int multiset_id_internal(int* tail, int tail_length, int alphabet_min, int alphabet_size) {
+int multiset_id(int* tail, int tail_length, int alphabet_min, int alphabet_size) {
     int head = tail[0];
     if (tail_length == 1) {
         return head - alphabet_min;
@@ -280,13 +280,11 @@ int multiset_id_internal(int* tail, int tail_length, int alphabet_min, int alpha
     exit(EXIT_FAILURE);
 }
 
-int multiset_id(int* multiset, int alphabet_size, int multiset_length) {
-    return multiset_id_internal(multiset, multiset_length, 0, alphabet_size);
-}
+
 
 int kmer_id_to_multiset_id(int kmer_id, int alphabet_size, int kmer_length) {
     int* multiset = get_kmer_multiset(kmer_id, alphabet_size, kmer_length);
-    int id = multiset_id(multiset, alphabet_size, kmer_length);
+    int id = multiset_id(multiset, kmer_length, 0, alphabet_size);
     free(multiset);
     return id;
 }
