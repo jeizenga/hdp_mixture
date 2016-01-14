@@ -142,6 +142,21 @@ void update_hdp_from_alignment(HierarchicalDirichletProcess* hdp, const char* al
     pass_data_to_hdp(hdp, signal, dp_ids, data_length);
 }
 
+int flat_hdp_num_dps(int alphabet_size, int kmer_length) {
+    int num_leaves = power(alphabet_size, kmer_length);
+    return = num_leaves + 1;
+}
+
+void flat_hdp_model_internal(HierarchicalDirichletProcess* hdp) {
+    int last_dp_id = hdp->num_dps - 1;
+    
+    for (int id = 0; id < last_dp_id; id++) {
+        set_dir_proc_parent(hdp, id, last_dp_id);
+    }
+}
+
+
+
 // n^k
 int power(int n, int k) {
     int num = 1;
@@ -165,17 +180,64 @@ int multiset_number(int n, int k) {
     return num;
 }
 
-int flat_hdp_num_dps(int alphabet_size, int kmer_length) {
-    int num_leaves = power(alphabet_size, kmer_length);
-    return = num_leaves + 1;
+int* get_word(int word_id, int alphabet_size, int word_length) {
+    int* word = (int*) malloc(sizeof(int) * word_length);
+    int id_remainder = word_id;
+    for (int i = 0; i < word_length; i++) {
+        word[word_length - i - 1] = id_remainder % alphabet_size;
+        id_remainder /= alphabet_size;
+    }
+    return word;
 }
 
-void flat_hdp_model_internal(HierarchicalDirichletProcess* hdp) {
-    int last_dp_id = hdp->num_dps - 1;
+int* get_word_multiset(int word_id, int alphabet_size, int word_length) {
+    int* multiset = get_word(word_id, alphabet_size, word_length);
     
-    for (int id = 0; id < last_dp_id; id++) {
-        set_dir_proc_parent(hdp, id, last_dp_id);
+    // selection sort 'cause whatever
+    int min_idx;
+    int temp;
+    for (int i = 0; i < word_length; i++) {
+        min_idx = i;
+        for (int j = i + 1; j < word_length; j++) {
+            if (multiset[j] < multiset[min_idx]) {
+                min_idx = j;
+            }
+        }
+        temp = multiset[i];
+        multiset[i] = multiset[min_idx];
+        multiset[min_idx] = temp;
     }
+    
+    return multiset;
+}
+
+int multiset_id_internal(int* tail, int tail_length, int alphabet_min, int alphabet_size) {
+    int head = tail[0];
+    if (tail_length == 1) {
+        return head - alphabet_min;
+    }
+    int step = 0;
+    for (int i = alphabet_min; i < alphabet_size; i++) {
+        if (head > i) {
+            step += multiset_number(alphabet_size - i, tail_length - 1);
+        }
+        else {
+            return step + multiset_id_internal(&(tail[1]), tail_length - 1, i, alphabet_size);
+        }
+    }
+    fprintf(stderr, "Character outside alphabet included in multiset\n");
+    exit(EXIT_FAILURE);
+}
+
+int multiset_id(int* multiset, int length, int alphabet_size) {
+    return multiset_id_internal(multiset, length, 0, alphabet_size);
+}
+
+int word_id_to_multiset_id(int word_id, int alphabet_size, int word_length) {
+    int* multiset = get_word_multiset(word_id, alphabet_size, word_length);
+    int id = multiset_id(multiset, word_length, alphabet_size);
+    free(multiset);
+    return id;
 }
 
 
@@ -231,71 +293,13 @@ int multiset_hdp_num_dps(int alphabet_size, int kmer_length) {
     return num_leaves + num_middle_dps + 1;
 }
 
-int* get_kmer(int kmer_id, int alphabet_size, int kmer_length) {
-    int* kmer = (int*) malloc(sizeof(int) * kmer_length);
-    int remainder = kmer_id;
-    for (int i = 0; i < kmer_length; i++) {
-        kmer[kmer_length - i - 1] = remainder % alphabet_size;
-        remainder /= alphabet_size;
-    }
-    return kmer;
-}
-
-int* get_kmer_multiset(int kmer_id, int alphabet_size, int kmer_length) {
-    int* multiset = get_kmer(kmer_id, alphabet_size, kmer_length);
-    
-    // selection sort 'cause whatever
-    int min_idx;
-    int temp;
-    for (int i = 0; i < kmer_length; i++) {
-        min_idx = i;
-        for (int j = i + 1; j < kmer_length; j++) {
-            if (multiset[j] < multiset[min_idx]) {
-                min_idx = j;
-            }
-        }
-        temp = multiset[i];
-        multiset[i] = multiset[min_idx];
-        multiset[min_idx] = temp;
-    }
-    
-    return multiset;
-}
-
-int multiset_id(int* tail, int tail_length, int alphabet_min, int alphabet_size) {
-    int head = tail[0];
-    if (tail_length == 1) {
-        return head - alphabet_min;
-    }
-    int step = 0;
-    for (int i = alphabet_min; i < alphabet_size; i++) {
-        if (head > i) {
-            step += multiset_number(alphabet_size - i, tail_length - 1);
-        }
-        else {
-            return step + multiset_id_internal(&tail[1], tail_length - 1, i, alphabet_size);
-        }
-    }
-    fprintf(stderr, "Character outside alphabet included in multiset\n");
-    exit(EXIT_FAILURE);
-}
-
-
-
-int kmer_id_to_multiset_id(int kmer_id, int alphabet_size, int kmer_length) {
-    int* multiset = get_kmer_multiset(kmer_id, alphabet_size, kmer_length);
-    int id = multiset_id(multiset, kmer_length, 0, alphabet_size);
-    free(multiset);
-    return id;
-}
-
 void multiset_hdp_model_internal(HierarchicalDirichletProcess* hdp, int alphabet_size, int kmer_length) {
     int num_leaves = power(alphabet_size, kmer_length);
     
     // set kmer parents to multisets
     int multiset_id;
     for (int kmer_id = 0; kmer_id < num_leaves; id++) {
-        multiset_id = kmer_id_to_multiset_id(kmer_id, alphabet_size, kmer_length);
+        multiset_id = word_id_to_multiset_id(kmer_id, alphabet_size, kmer_length);
         set_dir_proc_parent(hdp, kmer_id, num_leaves + multiset_id);
     }
     
@@ -368,7 +372,7 @@ int middle_2_nts_hdp_num_dps(alphabet_size, kmer_length) {
 }
 
 int kmer_id_to_middle_nts_id(int kmer_id, int alphabet_size, int kmer_length) {
-    int* kmer = get_kmer(kmer_id, alphabet_size, kmer_length);
+    int* kmer = get_word(kmer_id, alphabet_size, kmer_length);
     int id = alphabet_size * kmer[kmer_length / 2 - 1] + kmer[kmer_length / 2];
     free(kmer);
     return id;
@@ -415,13 +419,13 @@ HierarchicalDirichletProcess* middle_2_nts_hdp_model(int alphabet_size, int kmer
     return hdp;
 }
 
-HierarchicalDirichletProcess* middle_2_nts_hdp_model(int alphabet_size, int kmer_length,
-                                                     double base_gamma_alpha, double base_gamma_beta,
-                                                     double middle_gamma_alpha, double middle_gamma_beta,
-                                                     double leaf_gamma_alpha, double leaf_gamma_beta,
-                                                     double sampling_grid_start, double sampling_grid_stop,
-                                                     int sampling_grid_length,
-                                                     const char* signal_lookup_table_filepath) {
+HierarchicalDirichletProcess* middle_2_nts_hdp_model_2(int alphabet_size, int kmer_length,
+                                                       double base_gamma_alpha, double base_gamma_beta,
+                                                       double middle_gamma_alpha, double middle_gamma_beta,
+                                                       double leaf_gamma_alpha, double leaf_gamma_beta,
+                                                       double sampling_grid_start, double sampling_grid_stop,
+                                                       int sampling_grid_length,
+                                                       const char* signal_lookup_table_filepath) {
     if (kmer_length %2 != 2) {
         fprintf(stderr, "Warning: middle 2 nucleotides of odd length kmer is ambiguous. Resolving arbitrarily.\n");
     }

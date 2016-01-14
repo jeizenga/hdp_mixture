@@ -35,5 +35,3 @@ bool rand_bernoulli(double p);
 // explained further in Jordan's math notebook section "Cached variables for improved performance"
 double log_posterior_conditional_term(double nu_post, double two_alpha_post, double beta_post,
                                       SumOfLogsMemo* memo);
-
-#endif // HDP_MATH_UTILS_H_INCLUDED

@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <float.h>
+#include <inttypes.h>
 #include "hdp.h"
 #include "hdp_math_utils.h"
 #include "sonLib.h"
@@ -71,7 +72,8 @@ struct HierarchicalDirichletProcess {
     
     int samples_taken;
     bool splines_finalized;
-
+    
+    // TODO: replace this with my new offset log gamma memo
     struct SumOfLogsMemo* log_sum_memo;
     
     int depth;
@@ -99,7 +101,6 @@ void cache_base_factor_params(Factor* fctr, double mu, double nu, double two_alp
 }
 
 Factor* new_base_factor(HierarchicalDirichletProcess* hdp) {
-    //printf("$$$ making a new base factor\n");
     Factor* fctr = (Factor*) malloc(sizeof(Factor));
     fctr->factor_type = BASE;
 
@@ -153,7 +154,7 @@ void destroy_factor(Factor* fctr) {
     stSet* children = fctr->children;
     if (children != NULL) {
         if (stSet_size(children) > 0) {
-            //fprintf(stderr, "Attempted to destroy factor that still has children.\n");
+            fprintf(stderr, "Attempted to destroy factor that still has children.\n");
             exit(EXIT_FAILURE);
         }
         stSet_destruct(children);
@@ -169,7 +170,6 @@ void destroy_factor(Factor* fctr) {
     }
 
     if (fctr->factor_type == BASE) {
-        //printf("$$$ destroying a base factor\n");
         free(fctr->factor_data);
     }
     
@@ -193,7 +193,7 @@ Factor* get_base_factor(Factor* fctr) {
 
 double get_factor_data_pt(Factor* fctr) {
     if (fctr->factor_type != DATA_PT) {
-        //fprintf(stderr, "Attempted to access data point from non-leaf factor.\n");
+        fprintf(stderr, "Attempted to access data point from non-leaf factor.\n");
         exit(EXIT_FAILURE);
     }
     return *(fctr->factor_data);
@@ -201,22 +201,17 @@ double get_factor_data_pt(Factor* fctr) {
 
 void get_factor_sum_internal(Factor* fctr, double* sum, int* num_data) {
     if (fctr->factor_type == DATA_PT) {
-        //printf("attempts to get data from data point factor\n");
         *sum += get_factor_data_pt(fctr);
         // TODO: there should be a way to use the parent's counters instead of recounting the data pts
         (*num_data)++;
     }
     else {
-        //printf("attempts to get iterator for children\n");
         stSetIterator* child_iter = stSet_getIterator(fctr->children);
         Factor* child_fctr = (Factor*) stSet_getNext(child_iter);
         while (child_fctr != NULL) {
-            //printf("recurses down from depth %d\n", fctr->dp->depth);
             get_factor_sum_internal(child_fctr, sum, num_data);
-            //printf("exits recursion back to depth %d\n", fctr->dp->depth);
             child_fctr = (Factor*) stSet_getNext(child_iter);
         }
-        //printf("attempts to destruct iterator\n");
         stSet_destructIterator(child_iter);
     }
 }
@@ -241,10 +236,8 @@ void get_factor_stats(Factor* fctr, double* mean_out, double* sum_sq_dev_out, in
     *mean_out = 0.0;
     *sum_sq_dev_out = 0.0;
     *num_data_out = 0;
-    //printf("attempts to get sum and count\n");
     get_factor_sum_internal(fctr, mean_out, num_data_out);
     *mean_out /= (double) *num_data_out;
-    //printf("attempts to get sum of sq devs\n");
     get_factor_ssd_internal(fctr, *mean_out, sum_sq_dev_out);
 }
 
@@ -1392,7 +1385,6 @@ DirichletProcess** get_shuffled_dps(HierarchicalDirichletProcess* hdp) {
 void sample_dp_factors(DirichletProcess* dp, int* iter_counter, int burn_in, int thinning,
                        int* sample_counter, int num_samples) {
     
-    //printf("### enters sampling funtion for factors of dp id = %d\n", dp->id);
     if (!dp->observed) {
         return;
     }
@@ -1406,7 +1398,6 @@ void sample_dp_factors(DirichletProcess* dp, int* iter_counter, int burn_in, int
     Factor** sampling_fctrs = (Factor**) malloc(sizeof(Factor*) * num_factor_children);
     int i = 0;
     
-    //printf("### attempts to get factors for sampling\n");
     stSetIterator* fctr_iter = stSet_getIterator(dp->factors);
     Factor* fctr = (Factor*) stSet_getNext(fctr_iter);
     stSetIterator* child_fctr_iter;
@@ -1430,7 +1421,6 @@ void sample_dp_factors(DirichletProcess* dp, int* iter_counter, int burn_in, int
         
         if (iter % thinning == 0) {
             
-            //printf("### attempts to decide whether to take sample\n");
             if (iter > burn_in) {
                 take_distr_sample(dp->hdp);
                 samples_taken++;
@@ -1848,6 +1838,428 @@ double dir_proc_density(HierarchicalDirichletProcess* hdp, double x, int dp_id) 
         return 0.0;
     }
 }
+
+
+
+//struct Factor {
+//    FactorType factor_type;
+//    struct Factor* parent;
+//    stSet* children;
+//    double* factor_data;
+//    struct DirichletProcess* dp;
+//};
+
+void serialize_factor_tree_internal(FILE* out, Factor* fctr, int* parent_id_ptr, int* next_fctr_id, uintptr_t data_start) {
+    int id = *next_fctr_id;
+    (*next_fctr_id)++;
+    if (parent_id_ptr == NULL) {
+        fprintf(out, "-\t[");
+    }
+    else {
+        fprintf(out, "%d\t[", *parent_id_ptr);
+    }
+    if (fctr->factor_type == DATA_PT) {
+        uintptr_t data_pos = (uintptr_t) fctr->factor_data;
+        fprintf(out, "%d", (data_pos - data_start) / sizeof(int));
+    }
+    else if (fctr->factor_type == BASE) {
+        double* param_array = fctr->factor_data;
+        for (int i = 0; i < N_IG_NUM_PARAMS; i++) {
+            fprintf(out, "%15lf;", param_array[i]);
+        }
+        fprintf(out, "%15lf", param_array[N_IG_NUM_PARAMS]);
+    }
+    fprintf(out, "]\n");
+    
+    stSetIterator* iter = stSet_getIterator(fctr->children);
+    Factor* child_fctr = (Factor*) stSet_getNext(iter);
+    while (child_iter != NULL) {
+        serialize_factor_tree_internal(out, child_fctr, &id, next_fctr_id, data_start);
+        child_fctr = (Factor*) stSet_getNext(iter);
+    }
+    stSet_destructIterator(iter);
+}
+
+//struct HierarchicalDirichletProcess {
+//    bool finalized;
+//    double* data;
+//    int* data_pt_dp_id;
+//    int data_length;
+//
+//    struct DirichletProcess* base_dp;
+//    struct DirichletProcess** dps;
+//    int num_dps;
+//
+//    // normal-inverse gamma parameters
+//    double mu;
+//    double nu;
+//    double two_alpha;
+//    double beta;
+//
+//    double* sampling_grid;
+//    int grid_length;
+//
+//    int samples_taken;
+//    bool splines_finalized;
+//
+//    // TODO: replace this with my new offset log gamma memo
+//    struct SumOfLogsMemo* log_sum_memo;
+//
+//    int depth;
+//    bool sample_gamma;
+//    double* gamma;
+//
+//    double* gamma_alpha;
+//    double* gamma_beta;
+//    double* w_aux_vector;
+//    bool* s_aux_vector;
+//};
+
+
+void serialize_hdp(Hierarchical* hdp, const char* out_filepath) {
+    FILE* out = fopen(out_filepath, "w");
+    
+    int num_data = hdp->num_data;
+    double* data = hdp->data;
+    int* dp_ids = hdp->data_pt_dp_id;
+    int grid_length = hdp->grid_length;
+    double* grid = hdp->sampling_grid;
+    int depth = hdp->depth;
+    int gamma_params = hdp->gamma;
+    int gamma_alpha = hdp->gamma_alpha;
+    int gamma_beta = hdp->gamma_beta;
+    double* w_aux_vector = hdp->w_aux_vector;
+    bool* s_aux_vector = hdp->s_aux_vector;
+    DirichletProcess** dps = hdp->dps;
+    DirichletProcess* base_dp = hdp->base_dp;
+    
+    // finalized
+    fprintf(out, "%d\n", (int) hdp->finalized);
+    fprintf(out, "%d\n", (int) hdp->splines_finalized);
+    // data
+    for (int i = 0; i < num_data - 1; i++) {
+        fprintf(out, "%15lf\t", data[i]);
+    }
+    fprintf(out, "%15lf\n", data[num_data - 1]);
+    // dp ids
+    for (int i = 0; i < num_data - 1; i++) {
+        fprintf(out, "%d\t", dp_ids[i]);
+    }
+    fprintf(out, "%d\n", dp_ids[num_data - 1]);
+    // base params
+    fprintf(out, "%15lf\t%15lf\t%15lf\t%15lf\n", hdp->mu, hdp->nu, hdp->two_alpha, hdp->beta);
+    // sampling grid
+    fprintf(out, "%15lf\t%15l\t%d", grid[0], grid[grid_length - 1], grid_length);
+    // gamma
+    for (int i = 0; i < depth - 1; i++) {
+        fprintf(out, "%15lf\t", gamma_params[i]);
+    }
+    fprintf(out, "%15lf\n", gamma_params[depth - 1]);
+    // dirichlet processes
+    DirichletProcess* dp;
+    double* post_pred;
+    double* slopes;
+    for (int i = 0; i < num_dps; i++) {
+        dp = dps[i];
+        //fprintf("%d\t", dp->num_factor_children);
+        //fprintf("%d\t", (int) dp->observed);
+        // children: no
+        // gamma: no
+        // depth: no
+        // factors: no
+        // num_children: no
+        // wt: no
+        // cached vals: no
+        
+        // parent
+        if (dp == base_dp) {
+            fprintf("-\t");
+        }
+        else {
+            fprintf(out, "%d\t", dp->parent->id);
+        }        post_pred = dp->posterior_predictive;
+        slopes = dp->spline_slopes;
+        // post pred
+        fprintf(out, "[");
+        for (int i = 0; i < grid_length - 1; i++) {
+            fprintf(out, "%15lf;", post_pred[i]);
+        }
+        fprintf(out, "%15lf\n", post_pred[grid_length - 1]);
+        // spline slopes
+        fprintf(out, "]\t[");
+        if (hdp->splines_finalized) {
+            for (int i = 0; i < grid_length - 1; i++) {
+                fprintf(out, "%15lf;", slopes[i]);
+            }
+            fprintf(out, "%15lf\n", slopes[grid_length - 1]);
+        }
+        fprintf(out, "]\n");
+    }
+    fprintf(out, "*\n");
+    // gamma distr params
+    if (hdp->sample_gamma) {
+        // alpha
+        for (int i = 0; i < depth - 1; i++) {
+            fprintf(out, "%15lf\t", gamma_alpha[i]);
+        }
+        fprintf(out, "%15lf\n", gamma_alpha[depth - 1]);
+        // beta
+        for (int i = 0; i < depth - 1; i++) {
+            fprintf(out, "%15lf\t", gamma_beta[i]);
+        }
+        fprintf(out, "%15lf\n", gamma_beta[depth - 1]);
+        // w
+        for (int i = 0; i < num_dps - 1; i++) {
+            fprintf(out, "%15lf\t", w_aux_vector[i]);
+        }
+        fprintf(out, "%15lf\n", w_aux_vector[num_dps - 1]);
+        // s
+        for (int i = 0; i < num_dps - 1; i++) {
+            fprintf(out, "%d\t", s_aux_vector[i]);
+        }
+        fprintf(out, "%d\n", s_aux_vector[num_dps - 1]);
+    }
+    else {
+        fprintf(out, "\n");
+    }
+    // factors
+    fprintf("*\n");
+    int next_fctr_id = 0;
+    uintptr_t data_start = (uintptr_t) hdp->data;
+    
+    stSetIterator* iter = stSet_getIterator(base_dp->factors);
+    Factor* fctr = (Factor*) stSet_getNext(iter);
+    while (fctr != NULL) {
+        serialize_factor_tree_internal(out, fctr, NULL, &next_fctr_id, data_start);
+        fctr = (Factor*) stSet_getNext(iter);
+    }
+    stSet_destructIterator(iter);
+    
+    fclose(out);
+}
+
+HierarchicalDirichletProcess* deserialize_hdp(const char* filepath) {
+    FILE* in = fopen(filepath, "r");
+    
+    // finalized
+    char* end;
+    char* line = stFile_getLineFromFile(in);
+    bool finalized = (bool) strtol(line, &end, 10);
+    free(line);
+    // splines finalized
+    line = stFile_getLineFromFile(in);
+    bool splines_finalized = (bool) strtol(line, &end, 10);
+    free(line);
+    // data
+    line = stFile_getLineFromFile(in);
+    stList* tokens = stString_split(line);
+    int data_length = stList_length(tokens);
+    double* data = (double*) malloc(sizeof(double) * data_length);
+    for (int i = 0; i < data_length; i++) {
+        sscanf(stList_get(tokens, i), "%lf", &(data[i]));
+    }
+    free(line);
+    stList_destruct(tokens);
+    // dp ids
+    line = stFile_getLineFromFile(in);
+    tokens = stString_split(line);
+    int* dp_ids = (int*) malloc(sizeof(int) * data_length);
+    for (int i = 0; i < data_length; i++) {
+        sscanf(stList_get(tokens, i), "%d", &(dp_ids[i]));
+    }
+    free(line);
+    stList_destruct(tokens);
+    // base params
+    line = stFile_getLineFromFile(in);
+    double mu, nu, two_alpha, beta;
+    sscanf(line, "%15lf\t%15lf\t%15lf\t%15lf", &mu, &nu, &two_alpha, &beta);
+    free(line);
+    // sampling grid
+    line = stFile_getLineFromFile(in);
+    double grid_start, grid_stop;
+    int grid_length;
+    sscanf(line, "%15lf\t%15l\t%d", &grid_start, &grid_stop, &grid_length);
+    free(line);
+    // gamma
+    line = stFile_getLineFromFile(in);
+    tokens = stString_split(line);
+    int depth = stList_length(tokens);
+    double* gamma_params = (double*) malloc(sizeof(double) * depth);
+    for (int i = 0; i < depth; i++) {
+        sscanf(stList_get(tokens, i), "%lf", &(gamma_params[i]));
+    }
+    free(line);
+    stList_destruct(tokens);
+    // gamma distr params
+    line = stFile_getLineFromFile(in);
+    tokens = stString_split(line);
+    bool sample_gamma = false;
+    double* gamma_alpha;
+    double* gamma_beta;
+    double* w;
+    bool* s;
+    int s_int;
+    int num_dps; // TODO: careful with this, don't like it
+    if (stList_length(tokens) > 0) {
+        // gamma alpha
+        sample_gamma = true;
+        gamma_alpha = (double*) malloc(sizeof(double) * depth);
+        for (int i = 0; i < depth; i++) {
+            sscanf(stList_get(tokens, i), "%lf", &(gamma_alpha[i]));
+        }
+        free(line);
+        stList_destruct(tokens);
+        // gamma beta
+        line = stFile_getLineFromFile(in);
+        tokens = stString_split(line);
+        gamma_beta = (double*) malloc(sizeof(double) * depth);
+        for (int i = 0; i < depth; i++) {
+            sscanf(stList_get(tokens, i), "%lf", &(gamma_beta[i]));
+        }
+        free(line);
+        stList_destruct(tokens);
+        // w
+        line = stFile_getLineFromFile(in);
+        tokens = stString_split(line);
+        num_dps = stList_length(tokens);
+        w = (int*) malloc(sizeof(int) * num_dps);
+        for (int i = 0; i < num_dps; i++) {
+            sscanf(stList_get(tokens, i), "%lf", &(w[i]));
+        }
+        free(line);
+        stList_destruct(tokens);
+        // s
+        line = stFile_getLineFromFile(in);
+        tokens = stString_split(line);
+        s = (bool*) malloc(sizeof(bool) * num_dps);
+        for (int i = 0; i < num_dps; i++) {
+            sscanf(stList_get(tokens, i), "%d", &s_int);
+            s[i] = (bool) s_int;
+        }
+    }
+    free(line);
+    stList_destruct(tokens);
+    
+    
+    
+    //TODO: finish here
+    
+    
+    
+    
+    
+    
+    // dirichlet processes
+    DirichletProcess* dp;
+    double* post_pred;
+    double* slopes;
+    for (int i = 0; i < num_dps; i++) {
+        dp = dps[i];
+        //fprintf("%d\t", dp->num_factor_children);
+        //fprintf("%d\t", (int) dp->observed);
+        // children: no
+        // gamma: no
+        // depth: no
+        // factors: no
+        // num_children: no
+        // wt: no
+        // cached vals: no
+        
+        // parent
+        if (dp == base_dp) {
+            fprintf("-\t");
+        }
+        else {
+            fprintf(out, "%d\t", dp->parent->id);
+        }        post_pred = dp->posterior_predictive;
+        slopes = dp->spline_slopes;
+        // post pred
+        fprintf(out, "[");
+        for (int i = 0; i < grid_length - 1; i++) {
+            fprintf(out, "%15lf;", post_pred[i]);
+        }
+        fprintf(out, "%15lf\n", post_pred[grid_length - 1]);
+        // spline slopes
+        fprintf(out, "]\t[");
+        if (hdp->splines_finalized) {
+            for (int i = 0; i < grid_length - 1; i++) {
+                fprintf(out, "%15lf;", slopes[i]);
+            }
+            fprintf(out, "%15lf\n", slopes[grid_length - 1]);
+        }
+        fprintf(out, "]\n");
+    }
+    // gamma distr params
+    if (hdp->sample_gamma) {
+        // alpha
+        for (int i = 0; i < depth - 1; i++) {
+            fprintf(out, "%15lf\t", gamma_alpha[i]);
+        }
+        fprintf(out, "%15lf\n", gamma_alpha[depth - 1]);
+        // beta
+        for (int i = 0; i < depth - 1; i++) {
+            fprintf(out, "%15lf\t", gamma_beta[i]);
+        }
+        fprintf(out, "%15lf\n", gamma_beta[depth - 1]);
+        // w
+        for (int i = 0; i < num_dps - 1; i++) {
+            fprintf(out, "%15lf\t", w_aux_vector[i]);
+        }
+        fprintf(out, "%15lf\n", w_aux_vector[num_dps - 1]);
+        // s
+        for (int i = 0; i < num_dps - 1; i++) {
+            fprintf(out, "%d\t", s_aux_vector[i]);
+        }
+        fprintf(out, "%d\n", s_aux_vector[num_dps - 1]);
+    }
+    else {
+        fprintf(out, "\n");
+    }
+    // factors
+    fprintf("*\n");
+    int next_fctr_id = 0;
+    uintptr_t data_start = (uintptr_t) hdp->data;
+    
+    stSetIterator* iter = stSet_getIterator(base_dp->factors);
+    Factor* fctr = (Factor*) stSet_getNext(iter);
+    while (fctr != NULL) {
+        serialize_factor_tree_internal(out, fctr, NULL, &next_fctr_id, data_start);
+        fctr = (Factor*) stSet_getNext(iter);
+    }
+    stSet_destructIterator(iter);
+    
+    fclose(out);
+
+}
+
+//struct DirichletProcess {
+//    int id;
+//    struct HierarchicalDirichletProcess* hdp;
+//    double* gamma;
+//    int depth;
+//
+//    struct DirichletProcess* parent;
+//    stList* children;
+//    stSet* factors;
+//    int num_factor_children;
+//
+//    double base_factor_wt;
+//    double* posterior_predictive;
+//    double* spline_slopes;
+//
+//    double cached_factor_mean;
+//    double cached_factor_sum_sq_dev;
+//    int cached_factor_size;
+//
+//    bool observed;
+//};
+
+
+
+
+
+
+
 
 
 
