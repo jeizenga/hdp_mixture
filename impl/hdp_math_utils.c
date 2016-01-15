@@ -12,11 +12,11 @@ typedef struct LogGammaHalfMemo LogGammaHalfMemo;
 struct LogGammaHalfMemo {
     double alpha;
     double* zero_offset_memo;
-    int zero_offset_final_entry;
-    int zero_offset_length;
+    int64_t zero_offset_final_entry;
+    int64_t zero_offset_length;
     double* half_offset_memo;
-    int half_offset_final_entry;
-    int half_offset_length;
+    int64_t half_offset_final_entry;
+    int64_t half_offset_length;
 };
 
 LogGammaHalfMemo* new_log_gamma_memo(double alpha) {
@@ -44,17 +44,17 @@ void destroy_log_gamma_memo(LogGammaHalfMemo* memo) {
 }
 
 void extend_gamma_zero_offset_memo(LogGammaHalfMemo* memo) {
-    int final_entry = memo->half_offset_final_entry + 1;
+    int64_t final_entry = memo->half_offset_final_entry + 1;
     memo->zero_offset_final_entry = final_entry;
     double* current_array = memo->zero_offset_memo;
 
-    int current_length = memo->zero_offset_length;
+    int64_t current_length = memo->zero_offset_length;
     if (current_length == final_entry) {
 
-        int new_array_length = current_length * 2;
+        int64_t new_array_length = current_length * 2;
         double* new_array = (double*) malloc(sizeof(double) * new_array_length);
 
-        for (int i = 0; i < current_length; i++) {
+        for (int64_t i = 0; i < current_length; i++) {
             new_array[i] = current_array[i];
         }
 
@@ -68,17 +68,17 @@ void extend_gamma_zero_offset_memo(LogGammaHalfMemo* memo) {
 }
 
 void extend_gamma_half_offset_memo(LogGammaHalfMemo* memo) {
-    int final_entry = memo->half_offset_final_entry + 1;
+    int64_t final_entry = memo->half_offset_final_entry + 1;
     memo->half_offset_final_entry = final_entry;
     double* current_array = memo->half_offset_memo;
 
-    int current_length = memo->half_offset_length;
+    int64_t current_length = memo->half_offset_length;
     if (current_length == final_entry) {
 
-        int new_array_length = current_length * 2;
+        int64_t new_array_length = current_length * 2;
         double* new_array = (double*) malloc(sizeof(double) * new_array_length);
 
-        for (int i = 0; i < current_length; i++) {
+        for (int64_t i = 0; i < current_length; i++) {
             new_array[i] = current_array[i];
         }
 
@@ -92,8 +92,8 @@ void extend_gamma_half_offset_memo(LogGammaHalfMemo* memo) {
 }
 
 // returns log(Gamma(memo->alpha + n / 2))
-double offset_log_gamma_half(int n, LogGammaHalfMemo* memo) {
-    int idx = n / 2;
+double offset_log_gamma_half(int64_t n, LogGammaHalfMemo* memo) {
+    int64_t idx = n / 2;
     if (n % 2 == 0) {
         while (memo->zero_offset_final_entry < idx) {
             extend_gamma_zero_offset_memo(memo);
@@ -110,8 +110,8 @@ double offset_log_gamma_half(int n, LogGammaHalfMemo* memo) {
 
 struct SumOfLogsMemo {
     double* memo_array;
-    int final_entry;
-    int array_length;
+    int64_t final_entry;
+    int64_t array_length;
 };
 
 SumOfLogsMemo* new_log_sum_memo() {
@@ -130,15 +130,15 @@ void destroy_log_sum_memo(SumOfLogsMemo* memo) {
 }
 
 void extend_log_sum_memo(SumOfLogsMemo* memo) {
-    int final_entry = memo->final_entry;
-    int current_length = memo->array_length;
+    int64_t final_entry = memo->final_entry;
+    int64_t current_length = memo->array_length;
     if (current_length == final_entry) {
         double* current_array = memo->memo_array;
 
-        int new_array_length = current_length * 2;
+        int64_t new_array_length = current_length * 2;
         double* new_array = (double*) malloc(sizeof(double) * new_array_length);
 
-        for (int i = 0; i < current_length; i++) {
+        for (int64_t i = 0; i < current_length; i++) {
             new_array[i] = current_array[i];
         }
 
@@ -151,7 +151,7 @@ void extend_log_sum_memo(SumOfLogsMemo* memo) {
     (memo->final_entry)++;
 }
 
-double sum_of_logs(SumOfLogsMemo* memo, int n) {
+double sum_of_logs(SumOfLogsMemo* memo, int64_t n) {
     while (n > memo->final_entry) {
         extend_log_sum_memo(memo);
     }
@@ -159,7 +159,7 @@ double sum_of_logs(SumOfLogsMemo* memo, int n) {
 }
 
 // returns log(Gamma(n / 2)) in amortized constant time with low risk of overflow
-double log_gamma_half(int n, SumOfLogsMemo* sum_of_logs_memo) {
+double log_gamma_half(int64_t n, SumOfLogsMemo* sum_of_logs_memo) {
     if (n <= 2) {
         fprintf(stderr, "log_gamma_half only supports n > 2\n");
         exit(EXIT_FAILURE);
@@ -185,21 +185,21 @@ double add_logs(double log_x, double log_y) {
 }
 
 // quick-select algorithm on array copy (does not alter original array)
-double quickselect(double* arr, int length, int target_idx) {
+double quickselect(double* arr, int64_t length, int64_t target_idx) {
     if (target_idx < 0 || target_idx >= length) {
         fprintf(stderr, "Order statistic outside of array bounds\n");
         exit(EXIT_FAILURE);
     }
 
     double* arr_copy = (double*) malloc(sizeof(double) * length);
-    for (int i = 0; i < length; i++ ) {
+    for (int64_t i = 0; i < length; i++ ) {
         arr_copy[i] = arr[i];
     }
 
-    int low = 0;
-    int hi = length - 1;
-    int mid;
-    int median;
+    int64_t low = 0;
+    int64_t hi = length - 1;
+    int64_t mid;
+    int64_t median;
     double temp;
 
     while (true) {
@@ -238,8 +238,8 @@ double quickselect(double* arr, int length, int target_idx) {
         arr_copy[hi] = temp;
 
         // partition array
-        int pivot = low;
-        for (int i = low; i < hi; i++) {
+        int64_t pivot = low;
+        for (int64_t i = low; i < hi; i++) {
             if (arr_copy[i] < arr_copy[hi]) {
                 temp = arr_copy[i];
                 arr_copy[i] = arr_copy[pivot];
@@ -264,13 +264,13 @@ double quickselect(double* arr, int length, int target_idx) {
     }
 }
 
-double median(double* arr, int length) {
+double median(double* arr, int64_t length) {
     return quickselect(arr, length, length / 2);
 }
 
-double max(double* arr, int length) {
+double max(double* arr, int64_t length) {
     double curr_max = arr[0];
-    for (int i = 1; i < length; i++) {
+    for (int64_t i = 1; i < length; i++) {
         if (arr[i] > curr_max) {
             curr_max = arr[i];
         }
@@ -280,13 +280,13 @@ double max(double* arr, int length) {
 
 // returns the index of the first element of arr greater or equal to x, assuming arr is sorted
 // returns final index if x is greater than all elements of arr
-int bisect_left(double x, double* arr, int length) {
+int64_t bisect_left(double x, double* arr, int64_t length) {
     if (x <= arr[0]) {
         return 0;
     }
-    int low = 0;
-    int hi = length - 1;
-    int mid;
+    int64_t low = 0;
+    int64_t hi = length - 1;
+    int64_t mid;
     double arr_mid;
     while (hi > low + 1) {
         mid = (hi + low) / 2;
@@ -302,8 +302,8 @@ int bisect_left(double x, double* arr, int length) {
     return hi;
 }
 
-void spline_knot_slopes_internal(double* x, double* y, double* k, int idx, double center_coef_prev,
-                                 double right_coef_prev, double rhs_prev, int final_idx) {
+void spline_knot_slopes_internal(double* x, double* y, double* k, int64_t idx, double center_coef_prev,
+                                 double right_coef_prev, double rhs_prev, int64_t final_idx) {
 
     if (idx == final_idx) {
         double left_coef = 1.0 / (x[idx] - x[idx - 1]);
@@ -330,7 +330,7 @@ void spline_knot_slopes_internal(double* x, double* y, double* k, int idx, doubl
     k[idx] = (rhs - right_coef * k[idx + 1]) / center_coef;
 }
 
-double* spline_knot_slopes(double* x, double* y, int length) {
+double* spline_knot_slopes(double* x, double* y, int64_t length) {
     double* k = (double*) malloc(sizeof(double) * length);
 
     double right_coef = 1.0 / (x[1] - x[0]);
@@ -344,17 +344,17 @@ double* spline_knot_slopes(double* x, double* y, int length) {
     return k;
 }
 
-double spline_interp(double query_x, double* x, double* y, double* slope, int length) {
+double spline_interp(double query_x, double* x, double* y, double* slope, int64_t length) {
     if (query_x <= x[0]) {
         return y[0] - slope[0] * (x[0] - query_x);
     }
     else if (query_x >= x[length - 1]) {
-        int n = length - 1;
+        int64_t n = length - 1;
         return y[n] + slope[n] * (query_x - x[n]);
     }
     else {
-        int idx_right = bisect_left(query_x, x, length);
-        int idx_left = idx_right - 1;
+        int64_t idx_right = bisect_left(query_x, x, length);
+        int64_t idx_left = idx_right - 1;
 
         double dx = x[idx_right] - x[idx_left];
         double dy = y[idx_right] - y[idx_left];
@@ -371,18 +371,18 @@ double spline_interp(double query_x, double* x, double* y, double* slope, int le
 }
 
 // assumes even spacing of x points
-double grid_spline_interp(double query_x, double* x, double* y, double* slope, int length) {
+double grid_spline_interp(double query_x, double* x, double* y, double* slope, int64_t length) {
     if (query_x <= x[0]) {
         return y[0] - slope[0] * (x[0] - query_x);
     }
     else if (query_x >= x[length - 1]) {
-        int n = length - 1;
+        int64_t n = length - 1;
         return y[n] + slope[n] * (query_x - x[n]);
     }
     else {
         double dx = x[1] - x[0];
-        int idx_left = (int) ((query_x - x[0]) / dx);
-        int idx_right = idx_left + 1;
+        int64_t idx_left = (int64_t) ((query_x - x[0]) / dx);
+        int64_t idx_right = idx_left + 1;
         
         double dy = y[idx_right] - y[idx_left];
         
@@ -397,15 +397,15 @@ double grid_spline_interp(double query_x, double* x, double* y, double* slope, i
     }
 }
 
-double* linspace(double start, double stop, int length) {
+double* linspace(double start, double stop, int64_t length) {
     if (start >= stop) {
         fprintf(stderr, "linspace requires stop > start\n");
         exit(EXIT_FAILURE);
     }
     double* lin = (double*) malloc(sizeof(double) * length);
-    int n = length - 1;
+    int64_t n = length - 1;
     double dx = (stop - start) / ((double) n);
-    for (int i = 0; i < n; i++) {
+    for (int64_t i = 0; i < n; i++) {
         lin[i] = start +  i * dx;
     }
     lin[n] = stop;
@@ -435,21 +435,21 @@ double rand_exponential(double lambda) {
 double log_posterior_conditional_term(double nu_post, double two_alpha_post,
                                       double beta_post, SumOfLogsMemo* memo) {
 
-    return log_gamma_half((int) two_alpha_post, memo)
+    return log_gamma_half((int64_t) two_alpha_post, memo)
            - .5 * (log(nu_post) + two_alpha_post * log(beta_post));
 }
 
-void normal_inverse_gamma_params(double* x, int length, double* mu_out, double* nu_out,
+void normal_inverse_gamma_params(double* x, int64_t length, double* mu_out, double* nu_out,
                                  double* alpha_out, double* beta_out) {
     double mean = 0.0;
-    for (int i = 0; i < length; i++) {
+    for (int64_t i = 0; i < length; i++) {
         mean += x[i];
     }
     mean /= (double) length;
 
     double dev;
     double sum_sq_devs = 0.0;
-    for (int i = 0; i < length; i++) {
+    for (int64_t i = 0; i < length; i++) {
         dev = x[i] - mean;
         sum_sq_devs += dev * dev;
     }
