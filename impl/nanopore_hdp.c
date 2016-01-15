@@ -6,17 +6,19 @@
 //
 //
 
+// in 0-based index
+#define KMER_COL 9
+#define SIGNAL_COL 13
+#define NUM_COLS 14
+
 #include <stdio.h>
 #include <stdbool.h>
+#include <stdlib.h>
+#include <inttypes.h>
 #include "hdp.h"
 #include "hdp_math_utils.h"
 #include "nanopore_hdp.h"
 #include "sonLib.h"
-
-// in 0-based index
-#declare KMER_COL 9
-#declare SIGNAL_COL 13
-#declare NUM_COLS 14
 
 void normal_inverse_gamma_params_from_minION(const char* signal_lookup_table, double* mu_out, double* nu_out,
                                              double* alpha_out, double* beta_out) {
@@ -24,7 +26,7 @@ void normal_inverse_gamma_params_from_minION(const char* signal_lookup_table, do
     FILE* lookup_table = fopen(signal_lookup_table, "r");
     
     double* means;
-    int length;
+    int64_t length;
     
     //TODO: get the mean vector
     
@@ -33,8 +35,8 @@ void normal_inverse_gamma_params_from_minION(const char* signal_lookup_table, do
 }
 
 // fixed concentration parameters 'gamma' for each depth
-HierarchicalDirichletProcess* minION_hdp(int num_dps, int depth, double* gamma, double sampling_grid_start,
-                                         double sampling_grid_stop, int sampling_grid_length,
+HierarchicalDirichletProcess* minION_hdp(int64_t num_dps, int64_t depth, double* gamma, double sampling_grid_start,
+                                         double sampling_grid_stop, int64_t sampling_grid_length,
                                          const char* signal_lookup_table_filepath) {
     
     double mu, nu, alpha, beta;
@@ -45,9 +47,9 @@ HierarchicalDirichletProcess* minION_hdp(int num_dps, int depth, double* gamma, 
 
 // Gamma distribution prior on the concentration parameters 'gamma'
 // must designate vector of 'alpha' and 'beta' parameters of distribution for each depth
-HierarchicalDirichletProcess* minION_hdp_2(int num_dps, int depth, double* gamma_alpha,
+HierarchicalDirichletProcess* minION_hdp_2(int64_t num_dps, int64_t depth, double* gamma_alpha,
                                            double* gamma_beta, double sampling_grid_start,
-                                           double sampling_grid_stop, int sampling_grid_length,
+                                           double sampling_grid_stop, int64_t sampling_grid_length,
                                            const char* signal_lookup_table_filepath) {
     
     double mu, nu, alpha, beta;
@@ -56,32 +58,8 @@ HierarchicalDirichletProcess* minION_hdp_2(int num_dps, int depth, double* gamma
                                sampling_grid_stop, sampling_grid_length, mu, nu, alpha, beta);
 }
 
-int* stList_toIntPtr(stList* list, int* length_out) {
-    int length = (int) stList_length(list);
-    int* int_arr = (int*) malloc(sizeof(int) * length);
-    int* entry;
-    for (int i = 0; i < length; i++) {
-        entry = (int*) stList_get(list, i);
-        int_arr[0] = *entry;
-    }
-    *length_out = length;
-    return int_arr;
-}
-
-double* stList_toDoublePtr(stList* list, int* length_out) {
-    int length  = stList_length(list);
-    double* double_arr = (double*) malloc(sizeof(double) * length);
-    double* entry;
-    for (int i = 0; i < length; i++) {
-        entry = (double*) stList_get(list, i);
-        double_arr[0] = *entry;
-    }
-    *length_out = length;
-    return double_arr;
-}
-
 void update_hdp_from_alignment(HierarchicalDirichletProcess* hdp, const char* alignment_filepath,
-                               int (*kmer_to_dp_id_func) (char*), bool has_header) {
+                               int64_t (*kmer_to_dp_id_func) (char*), bool has_header) {
     
     stList* signal_list = stList_construct3(0, &free);
     stList* dp_id_list = stList_construct3(0, &free);
@@ -92,7 +70,7 @@ void update_hdp_from_alignment(HierarchicalDirichletProcess* hdp, const char* al
     int64_t line_length;
     char* kmer;
     char* signal_str;
-    int* dp_id_ptr;
+    int64_t* dp_id_ptr;
     double* signal_ptr;
     bool warned = false;
     
@@ -102,7 +80,7 @@ void update_hdp_from_alignment(HierarchicalDirichletProcess* hdp, const char* al
     }
     while (line != NULL) {
         tokens = stString_split(line);
-        line_length = stList_getLength(tokens);
+        line_length = stList_length(tokens);
         
         if (!warned) {
             if (line_length != NUM_COLS) {
@@ -115,7 +93,7 @@ void update_hdp_from_alignment(HierarchicalDirichletProcess* hdp, const char* al
         kmer = (char*) stList_get(tokens, KMER_COL);
         
         signal_ptr = (double*) malloc(sizeof(double));
-        dp_id_ptr = (double*) malloc(sizeof(int));
+        dp_id_ptr = (int64_t*) malloc(sizeof(int64_t));
         
         sscanf(signal_str, "%lf", signal_ptr);
         *dp_id_ptr = kmer_to_dp_id_func(kmer);
@@ -130,10 +108,10 @@ void update_hdp_from_alignment(HierarchicalDirichletProcess* hdp, const char* al
     
     fclose(align_file);
     
-    int data_length;
+    int64_t data_length;
     
     double* signal = stList_toDoublePtr(signal_list, &data_length);
-    int* dp_ids = stList_toIntPtr(dp_id_list, &data_length);
+    int64_t* dp_ids = stList_toIntPtr(dp_id_list, &data_length);
     
     stList_destruct(signal_list);
     stList_destruct(dp_id_list);
@@ -142,26 +120,13 @@ void update_hdp_from_alignment(HierarchicalDirichletProcess* hdp, const char* al
     pass_data_to_hdp(hdp, signal, dp_ids, data_length);
 }
 
-int flat_hdp_num_dps(int alphabet_size, int kmer_length) {
-    int num_leaves = power(alphabet_size, kmer_length);
-    return = num_leaves + 1;
-}
-
-void flat_hdp_model_internal(HierarchicalDirichletProcess* hdp) {
-    int last_dp_id = hdp->num_dps - 1;
-    
-    for (int id = 0; id < last_dp_id; id++) {
-        set_dir_proc_parent(hdp, id, last_dp_id);
-    }
-}
-
 
 
 // n^k
-int power(int n, int k) {
-    int num = 1;
+int64_t power(int64_t n, int64_t k) {
+    int64_t num = 1;
     
-    for (int i = 0; i < k; i++) {
+    for (int64_t i = 0; i < k; i++) {
         num *= n;
     }
     
@@ -169,36 +134,36 @@ int power(int n, int k) {
 }
 
 //  ((n k))
-int multiset_number(int n, int k) {
-    int num = 1;
-    for (int m = n + k - 1; m >= n; m--) {
+int64_t multiset_number(int64_t n, int64_t k) {
+    int64_t num = 1;
+    for (int64_t m = n + k - 1; m >= n; m--) {
         num *= m;
     }
-    for (int m = k; m >= 2; m--) {
+    for (int64_t m = k; m >= 2; m--) {
         num /= m;
     }
     return num;
 }
 
-int* get_word(int word_id, int alphabet_size, int word_length) {
-    int* word = (int*) malloc(sizeof(int) * word_length);
-    int id_remainder = word_id;
-    for (int i = 0; i < word_length; i++) {
+int64_t* get_word(int64_t word_id, int64_t alphabet_size, int64_t word_length) {
+    int64_t* word = (int64_t*) malloc(sizeof(int64_t) * word_length);
+    int64_t id_remainder = word_id;
+    for (int64_t i = 0; i < word_length; i++) {
         word[word_length - i - 1] = id_remainder % alphabet_size;
         id_remainder /= alphabet_size;
     }
     return word;
 }
 
-int* get_word_multiset(int word_id, int alphabet_size, int word_length) {
-    int* multiset = get_word(word_id, alphabet_size, word_length);
+int64_t* get_word_multiset(int64_t word_id, int64_t alphabet_size, int64_t word_length) {
+    int64_t* multiset = get_word(word_id, alphabet_size, word_length);
     
     // selection sort 'cause whatever
-    int min_idx;
-    int temp;
-    for (int i = 0; i < word_length; i++) {
+    int64_t min_idx;
+    int64_t temp;
+    for (int64_t i = 0; i < word_length; i++) {
         min_idx = i;
-        for (int j = i + 1; j < word_length; j++) {
+        for (int64_t j = i + 1; j < word_length; j++) {
             if (multiset[j] < multiset[min_idx]) {
                 min_idx = j;
             }
@@ -211,13 +176,13 @@ int* get_word_multiset(int word_id, int alphabet_size, int word_length) {
     return multiset;
 }
 
-int multiset_id_internal(int* tail, int tail_length, int alphabet_min, int alphabet_size) {
-    int head = tail[0];
+int64_t multiset_id_internal(int64_t* tail, int64_t tail_length, int64_t alphabet_min, int64_t alphabet_size) {
+    int64_t head = tail[0];
     if (tail_length == 1) {
         return head - alphabet_min;
     }
-    int step = 0;
-    for (int i = alphabet_min; i < alphabet_size; i++) {
+    int64_t step = 0;
+    for (int64_t i = alphabet_min; i < alphabet_size; i++) {
         if (head > i) {
             step += multiset_number(alphabet_size - i, tail_length - 1);
         }
@@ -229,30 +194,44 @@ int multiset_id_internal(int* tail, int tail_length, int alphabet_min, int alpha
     exit(EXIT_FAILURE);
 }
 
-int multiset_id(int* multiset, int length, int alphabet_size) {
+int64_t multiset_id(int64_t* multiset, int64_t length, int64_t alphabet_size) {
     return multiset_id_internal(multiset, length, 0, alphabet_size);
 }
 
-int word_id_to_multiset_id(int word_id, int alphabet_size, int word_length) {
-    int* multiset = get_word_multiset(word_id, alphabet_size, word_length);
-    int id = multiset_id(multiset, word_length, alphabet_size);
+int64_t word_id_to_multiset_id(int64_t word_id, int64_t alphabet_size, int64_t word_length) {
+    int64_t* multiset = get_word_multiset(word_id, alphabet_size, word_length);
+    int64_t id = multiset_id(multiset, word_length, alphabet_size);
     free(multiset);
     return id;
 }
 
 
-HierarchicalDirichletProcess* flat_hdp_model(int alphabet_size, int kmer_length, double base_gamma,
+
+int64_t flat_hdp_num_dps(int64_t alphabet_size, int64_t kmer_length) {
+    int64_t num_leaves = power(alphabet_size, kmer_length);
+    return num_leaves + 1;
+}
+
+void flat_hdp_model_internal(HierarchicalDirichletProcess* hdp, int64_t alphabet_size, int64_t kmer_length) {
+    int64_t last_dp_id = power(alphabet_size, kmer_length);
+    
+    for (int64_t id = 0; id < last_dp_id; id++) {
+        set_dir_proc_parent(hdp, id, last_dp_id);
+    }
+}
+
+HierarchicalDirichletProcess* flat_hdp_model(int64_t alphabet_size, int64_t kmer_length, double base_gamma,
                                              double leaf_gamma, double sampling_grid_start,
-                                             double sampling_grid_stop, int sampling_grid_length,
+                                             double sampling_grid_stop, int64_t sampling_grid_length,
                                              const char* signal_lookup_table_filepath) {
     
     double* gamma_params = (double*) malloc(sizeof(double) * 2);
     gamma_params[0] = base_gamma;
     gamma_params[1] = leaf_gamma;
     
-    int num_dps = flat_hdp_num_dps(alphabet_size, kmer_length);
+    int64_t num_dps = flat_hdp_num_dps(alphabet_size, kmer_length);
     
-    HierarchicalDirichletProcess* hdp = minION_hdp(num_dps, 2, gamma, sampling_grid_start,
+    HierarchicalDirichletProcess* hdp = minION_hdp(num_dps, 2, gamma_params, sampling_grid_start,
                                                    sampling_grid_stop, sampling_grid_length,
                                                    signal_lookup_table_filepath);
     
@@ -261,11 +240,11 @@ HierarchicalDirichletProcess* flat_hdp_model(int alphabet_size, int kmer_length,
     return hdp;
 }
 
-HierarchicalDirichletProcess* flat_hdp_model_2(int alphabet_size, int kmer_length,
+HierarchicalDirichletProcess* flat_hdp_model_2(int64_t alphabet_size, int64_t kmer_length,
                                                double base_gamma_alpha, double base_gamma_beta,
                                                double leaf_gamma_alpha, double leaf_gamma_beta,
                                                double sampling_grid_start, double sampling_grid_stop,
-                                               int sampling_grid_length,
+                                               int64_t sampling_grid_length,
                                                const char* signal_lookup_table_filepath) {
     
     double* gamma_alpha = (double*) malloc(sizeof(double) * 2);
@@ -276,7 +255,7 @@ HierarchicalDirichletProcess* flat_hdp_model_2(int alphabet_size, int kmer_lengt
     gamma_beta[0] = base_gamma_beta;
     gamma_beta[1] = leaf_gamma_beta;
     
-    int num_dps = flat_hdp_num_dps(alphabet_size, kmer_length);
+    int64_t num_dps = flat_hdp_num_dps(alphabet_size, kmer_length);
     
     HierarchicalDirichletProcess* hdp = minION_hdp_2(num_dps, 2, gamma_alpha, gamma_beta, sampling_grid_start,
                                                      sampling_grid_stop, sampling_grid_length,
@@ -287,33 +266,34 @@ HierarchicalDirichletProcess* flat_hdp_model_2(int alphabet_size, int kmer_lengt
     return hdp;
 }
 
-int multiset_hdp_num_dps(int alphabet_size, int kmer_length) {
-    int num_leaves = power(alphabet_size, kmer_length);
-    int num_middle_dps = multiset_number(kmer_length, alphabet_size);
+int64_t multiset_hdp_num_dps(int64_t alphabet_size, int64_t kmer_length) {
+    int64_t num_leaves = power(alphabet_size, kmer_length);
+    int64_t num_middle_dps = multiset_number(kmer_length, alphabet_size);
     return num_leaves + num_middle_dps + 1;
 }
 
-void multiset_hdp_model_internal(HierarchicalDirichletProcess* hdp, int alphabet_size, int kmer_length) {
-    int num_leaves = power(alphabet_size, kmer_length);
+void multiset_hdp_model_internal(HierarchicalDirichletProcess* hdp, int64_t alphabet_size, int64_t kmer_length) {
+    int64_t num_leaves = power(alphabet_size, kmer_length);
+    int64_t num_middle_dps = multiset_number(kmer_length, alphabet_size);
     
     // set kmer parents to multisets
-    int multiset_id;
-    for (int kmer_id = 0; kmer_id < num_leaves; id++) {
+    int64_t multiset_id;
+    for (int64_t kmer_id = 0; kmer_id < num_leaves; kmer_id++) {
         multiset_id = word_id_to_multiset_id(kmer_id, alphabet_size, kmer_length);
         set_dir_proc_parent(hdp, kmer_id, num_leaves + multiset_id);
     }
     
     // set multiset parents to base dp
-    int last_dp_id = hdp->num_dps - 1;
-    for (int middle_dp_id = num_leaves; middle_dp_id < last_dp_id; middle_dp_id++) {
+    int64_t last_dp_id = num_leaves + num_middle_dps;
+    for (int64_t middle_dp_id = num_leaves; middle_dp_id < last_dp_id; middle_dp_id++) {
         set_dir_proc_parent(hdp, middle_dp_id, last_dp_id);
     }
 }
 
-HierarchicalDirichletProcess* multiset_hdp_model(int alphabet_size, int kmer_length, double base_gamma,
+HierarchicalDirichletProcess* multiset_hdp_model(int64_t alphabet_size, int64_t kmer_length, double base_gamma,
                                                  double middle_gamma, double leaf_gamma,
                                                  double sampling_grid_start,
-                                                 double sampling_grid_stop, int sampling_grid_length,
+                                                 double sampling_grid_stop, int64_t sampling_grid_length,
                                                  const char* signal_lookup_table_filepath) {
     
     double* gamma_params = (double*) malloc(sizeof(double) * 3);
@@ -321,9 +301,9 @@ HierarchicalDirichletProcess* multiset_hdp_model(int alphabet_size, int kmer_len
     gamma_params[1] = middle_gamma;
     gamma_params[2] = leaf_gamma;
     
-    int num_dps = multiset_hdp_num_dps(alphabet_size, kmer_length);
+    int64_t num_dps = multiset_hdp_num_dps(alphabet_size, kmer_length);
     
-    HierarchicalDirichletProcess* hdp = minION_hdp(num_dps, 3, gamma, sampling_grid_start,
+    HierarchicalDirichletProcess* hdp = minION_hdp(num_dps, 3, gamma_params, sampling_grid_start,
                                                    sampling_grid_stop, sampling_grid_length,
                                                    signal_lookup_table_filepath);
     
@@ -332,12 +312,12 @@ HierarchicalDirichletProcess* multiset_hdp_model(int alphabet_size, int kmer_len
     return hdp;
 }
 
-HierarchicalDirichletProcess* multiset_hdp_model_2(int alphabet_size, int kmer_length,
+HierarchicalDirichletProcess* multiset_hdp_model_2(int64_t alphabet_size, int64_t kmer_length,
                                                    double base_gamma_alpha, double base_gamma_beta,
                                                    double middle_gamma_alpha, double middle_gamma_beta,
                                                    double leaf_gamma_alpha, double leaf_gamma_beta,
                                                    double sampling_grid_start, double sampling_grid_stop,
-                                                   int sampling_grid_length,
+                                                   int64_t sampling_grid_length,
                                                    const char* signal_lookup_table_filepath) {
     
     double* gamma_alpha = (double*) malloc(sizeof(double) * 3);
@@ -351,7 +331,7 @@ HierarchicalDirichletProcess* multiset_hdp_model_2(int alphabet_size, int kmer_l
     gamma_beta[1] = middle_gamma_beta;
     gamma_beta[2] = leaf_gamma_beta;
     
-    int num_dps = multiset_hdp_num_dps(alphabet_size, kmer_length);
+    int64_t num_dps = multiset_hdp_num_dps(alphabet_size, kmer_length);
     
     HierarchicalDirichletProcess* hdp = minION_hdp_2(num_dps, 3, gamma_alpha, gamma_beta, sampling_grid_start,
                                                      sampling_grid_stop, sampling_grid_length,
@@ -362,7 +342,7 @@ HierarchicalDirichletProcess* multiset_hdp_model_2(int alphabet_size, int kmer_l
     return hdp;
 }
 
-int middle_2_nts_hdp_num_dps(alphabet_size, kmer_length) {
+int64_t middle_2_nts_hdp_num_dps(int64_t alphabet_size, int64_t kmer_length) {
     if (kmer_length <= 2) {
         fprintf(stderr, "k-mer is not long enough for middle 2 nucleotides HDP\n");
         exit(EXIT_FAILURE);
@@ -371,33 +351,34 @@ int middle_2_nts_hdp_num_dps(alphabet_size, kmer_length) {
     return power(alphabet_size, kmer_length) + power(alphabet_size, 2) + 1;
 }
 
-int kmer_id_to_middle_nts_id(int kmer_id, int alphabet_size, int kmer_length) {
-    int* kmer = get_word(kmer_id, alphabet_size, kmer_length);
-    int id = alphabet_size * kmer[kmer_length / 2 - 1] + kmer[kmer_length / 2];
+int64_t kmer_id_to_middle_nts_id(int64_t kmer_id, int64_t alphabet_size, int64_t kmer_length) {
+    int64_t* kmer = get_word(kmer_id, alphabet_size, kmer_length);
+    int64_t id = alphabet_size * kmer[kmer_length / 2 - 1] + kmer[kmer_length / 2];
     free(kmer);
     return id;
 }
 
-void middle_2_nts_hdp_model_internal(HierarchicalDirichletProcess* hdp, int alphabet_size, int kmer_length) {
+void middle_2_nts_hdp_model_internal(HierarchicalDirichletProcess* hdp, int64_t alphabet_size, int64_t kmer_length) {
     
-    int num_leaves = power(alphabet_size, kmer_length);
+    int64_t num_leaves = power(alphabet_size, kmer_length);
+    int64_t num_middle_dps = power(alphabet_size, 2);
     
-    int middle_dp_id;
-    for (int kmer_id = 0; kmer_id < num_leaves; kmer_id++) {
+    int64_t middle_dp_id;
+    for (int64_t kmer_id = 0; kmer_id < num_leaves; kmer_id++) {
         middle_dp_id = kmer_id_to_middle_nts_id(kmer_id, alphabet_size, kmer_length);
-        set_dir_proc_parent(hdp, kmer_id, middle_dp_id)
+        set_dir_proc_parent(hdp, kmer_id, middle_dp_id);
     }
     
-    int last_dp_id = hdp->num_dps - 1;
-    for (int id = num_leaves; id < last_dp_id; id++) {
+    int64_t last_dp_id = num_leaves + num_middle_dps;
+    for (int64_t id = num_leaves; id < last_dp_id; id++) {
         set_dir_proc_parent(hdp, id, last_dp_id);
     }
 }
 
-HierarchicalDirichletProcess* middle_2_nts_hdp_model(int alphabet_size, int kmer_length, double base_gamma,
+HierarchicalDirichletProcess* middle_2_nts_hdp_model(int64_t alphabet_size, int64_t kmer_length, double base_gamma,
                                                      double middle_gamma, double leaf_gamma,
                                                      double sampling_grid_start,
-                                                     double sampling_grid_stop, int sampling_grid_length,
+                                                     double sampling_grid_stop, int64_t sampling_grid_length,
                                                      const char* signal_lookup_table_filepath) {
     if (kmer_length %2 != 2) {
         fprintf(stderr, "Warning: middle 2 nucleotides of odd length kmer is ambiguous. Resolving arbitrarily.\n");
@@ -408,9 +389,9 @@ HierarchicalDirichletProcess* middle_2_nts_hdp_model(int alphabet_size, int kmer
     gamma_params[1] = middle_gamma;
     gamma_params[2] = leaf_gamma;
     
-    int num_dps = middle_2_nts_hdp_num_dps(alphabet_size, kmer_length);
+    int64_t num_dps = middle_2_nts_hdp_num_dps(alphabet_size, kmer_length);
     
-    HierarchicalDirichletProcess* hdp = minION_hdp(num_dps, 3, gamma, sampling_grid_start,
+    HierarchicalDirichletProcess* hdp = minION_hdp(num_dps, 3, gamma_params, sampling_grid_start,
                                                    sampling_grid_stop, sampling_grid_length,
                                                    signal_lookup_table_filepath);
     
@@ -419,12 +400,12 @@ HierarchicalDirichletProcess* middle_2_nts_hdp_model(int alphabet_size, int kmer
     return hdp;
 }
 
-HierarchicalDirichletProcess* middle_2_nts_hdp_model_2(int alphabet_size, int kmer_length,
+HierarchicalDirichletProcess* middle_2_nts_hdp_model_2(int64_t alphabet_size, int64_t kmer_length,
                                                        double base_gamma_alpha, double base_gamma_beta,
                                                        double middle_gamma_alpha, double middle_gamma_beta,
                                                        double leaf_gamma_alpha, double leaf_gamma_beta,
                                                        double sampling_grid_start, double sampling_grid_stop,
-                                                       int sampling_grid_length,
+                                                       int64_t sampling_grid_length,
                                                        const char* signal_lookup_table_filepath) {
     if (kmer_length %2 != 2) {
         fprintf(stderr, "Warning: middle 2 nucleotides of odd length kmer is ambiguous. Resolving arbitrarily.\n");
@@ -440,7 +421,7 @@ HierarchicalDirichletProcess* middle_2_nts_hdp_model_2(int alphabet_size, int km
     gamma_beta[1] = middle_gamma_beta;
     gamma_beta[2] = leaf_gamma_beta;
     
-    int num_dps = middle_2_nts_hdp_num_dps(alphabet_size, kmer_length);
+    int64_t num_dps = middle_2_nts_hdp_num_dps(alphabet_size, kmer_length);
     
     HierarchicalDirichletProcess* hdp = minION_hdp_2(num_dps, 3, gamma_alpha, gamma_beta, sampling_grid_start,
                                                      sampling_grid_stop, sampling_grid_length,

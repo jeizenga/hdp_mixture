@@ -2,7 +2,9 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <stdbool.h>
+#include <inttypes.h>
 #include "hdp_math_utils.h"
+#include "sonLib.h"
 
 #define LOG_ROOT_PI 0.572364942924700087071713
 #define LOG_4 1.386294361119890618834464
@@ -172,7 +174,6 @@ double log_gamma_half(int64_t n, SumOfLogsMemo* sum_of_logs_memo) {
                - sum_of_logs(sum_of_logs_memo, n / 2);
     }
 }
-
 
 // returns log(x + y) without leaving log transformed space
 double add_logs(double log_x, double log_y) {
@@ -458,4 +459,28 @@ void normal_inverse_gamma_params(double* x, int64_t length, double* mu_out, doub
     *nu_out = (double) length;
     *alpha_out = ((double) length - 1.0) / 2.0;
     *beta_out = .5 * sum_sq_devs;
+}
+
+int64_t* stList_toIntPtr(stList* list, int64_t* length_out) {
+    int64_t length = (int64_t) stList_length(list);
+    int64_t* int_arr = (int64_t*) malloc(sizeof(int64_t) * length);
+    int64_t* entry;
+    for (int64_t i = 0; i < length; i++) {
+        entry = (int64_t*) stList_get(list, i);
+        int_arr[i] = *entry;
+    }
+    *length_out = length;
+    return int_arr;
+}
+
+double* stList_toDoublePtr(stList* list, int64_t* length_out) {
+    int64_t length  = stList_length(list);
+    double* double_arr = (double*) malloc(sizeof(double) * length);
+    double* entry;
+    for (int64_t i = 0; i < length; i++) {
+        entry = (double*) stList_get(list, i);
+        double_arr[i] = *entry;
+    }
+    *length_out = length;
+    return double_arr;
 }

@@ -8,16 +8,17 @@
 
 #include <stdio.h>
 #include <stdlib.h>
+#include <inttypes.h>
 #include "CuTest.h"
 #include "nanopore_hdp.h"
 
 void test_first_kmer_index(CuTest* ct) {
-    int kmer_id = 0;
-    int length = 5;
-    int alphabet_size = 4;
-    int* kmer = get_word(kmer_id, alphabet_size, length);
+    int64_t kmer_id = 0;
+    int64_t length = 5;
+    int64_t alphabet_size = 4;
+    int64_t* kmer = get_word(kmer_id, alphabet_size, length);
     
-    for (int i = 0; i < length; i++) {
+    for (int64_t i = 0; i < length; i++) {
         CuAssertIntEquals(ct, 0, kmer[i]);
     }
     
@@ -25,10 +26,10 @@ void test_first_kmer_index(CuTest* ct) {
 }
 
 void test_second_kmer_index(CuTest* ct) {
-    int kmer_id = 1;
-    int length = 5;
-    int alphabet_size = 4;
-    int* kmer = get_word(kmer_id, alphabet_size, length);
+    int64_t kmer_id = 1;
+    int64_t length = 5;
+    int64_t alphabet_size = 4;
+    int64_t* kmer = get_word(kmer_id, alphabet_size, length);
     
     for (int i = 0; i < length - 1; i++) {
         CuAssertIntEquals(ct, 0, kmer[i]);
@@ -39,12 +40,12 @@ void test_second_kmer_index(CuTest* ct) {
 }
 
 void test_sixth_kmer_index(CuTest* ct) {
-    int kmer_id = 6;
-    int length = 5;
-    int alphabet_size = 4;
-    int* kmer = get_word(kmer_id, alphabet_size, length);
+    int64_t kmer_id = 6;
+    int64_t length = 5;
+    int64_t alphabet_size = 4;
+    int64_t* kmer = get_word(kmer_id, alphabet_size, length);
     
-    for (int i = 0; i < length - 2; i++) {
+    for (int64_t i = 0; i < length - 2; i++) {
         CuAssertIntEquals(ct, 0, kmer[i]);
     }
     CuAssertIntEquals(ct, 1, kmer[length - 2]);
@@ -54,13 +55,13 @@ void test_sixth_kmer_index(CuTest* ct) {
 }
 
 void test_multiset_creation(CuTest* ct) {
-    int length = 6;
-    int alphabet_size = 4;
-    int* multiset_1 = get_word_multiset(1, alphabet_size, length);
-    int* multiset_2 = get_word_multiset(4, alphabet_size, length);
-    int* multiset_3 = get_word_multiset(16, alphabet_size, length);
+    int64_t length = 6;
+    int64_t alphabet_size = 4;
+    int64_t* multiset_1 = get_word_multiset(1, alphabet_size, length);
+    int64_t* multiset_2 = get_word_multiset(4, alphabet_size, length);
+    int64_t* multiset_3 = get_word_multiset(16, alphabet_size, length);
     
-    for (int i = 0; i < length; i++) {
+    for (int64_t i = 0; i < length; i++) {
         CuAssertIntEquals(ct, multiset_1[i], multiset_2[i]);
         CuAssertIntEquals(ct, multiset_2[i], multiset_3[i]);
     }
@@ -71,8 +72,8 @@ void test_multiset_creation(CuTest* ct) {
 }
 
 void test_word_id_to_multiset_id(CuTest* ct) {
-    int length = 8;
-    int alphabet_size = 4;
+    int64_t length = 8;
+    int64_t alphabet_size = 4;
     
     CuAssertIntEquals(ct, word_id_to_multiset_id(0, alphabet_size, length), 0);
     CuAssertIntEquals(ct, word_id_to_multiset_id(1, alphabet_size, length), 1);

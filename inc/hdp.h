@@ -1,6 +1,8 @@
 #ifndef HDP_H_INCLUDED
 #define HDP_H_INCLUDED
 
+#include <inttypes.h>
+
 typedef struct HierarchicalDirichletProcess HierarchicalDirichletProcess;
 
 HierarchicalDirichletProcess* new_hier_dir_proc(int64_t num_dps, int64_t depth, double* gamma, double sampling_grid_start,
@@ -21,7 +23,8 @@ void pass_data_to_hdp(HierarchicalDirichletProcess* hdp, double* data, int64_t* 
 
 void reset_hdp_data(HierarchicalDirichletProcess* hdp);
 
-void execute_gibbs_sampling(HierarchicalDirichletProcess* hdp, int64_t num_samples, int64_t burn_in, int64_t thinning);
+void execute_gibbs_sampling(HierarchicalDirichletProcess* hdp, int64_t num_samples, int64_t burn_in,
+                            int64_t thinning);
 
 void execute_gibbs_sampling_with_snapshots(HierarchicalDirichletProcess* hdp,
                                            int64_t num_samples, int64_t burn_in, int64_t thinning,

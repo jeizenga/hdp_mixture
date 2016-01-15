@@ -3,34 +3,10 @@
 #include <stdbool.h>
 #include "hdp.h"
 #include "sonLib.h"
-
-int* stList_toIntPtr(stList* list, int* length_out) {
-    int length = (int) stList_length(list);
-    int* int_arr = (int*) malloc(sizeof(int) * length);
-    int* entry;
-    for (int i = 0; i < length; i++) {
-        entry = (int*) stList_get(list, i);
-        int_arr[i] = *entry;
-    }
-    *length_out = length;
-    return int_arr;
-}
-
-double* stList_toDoublePtr(stList* list, int* length_out) {
-    int length  = stList_length(list);
-    double* double_arr = (double*) malloc(sizeof(double) * length);
-    double* entry;
-    for (int i = 0; i < length; i++) {
-        entry = (double*) stList_get(list, i);
-        double_arr[i] = *entry;
-    }
-    *length_out = length;
-    return double_arr;
-}
-
+#include "hdp_math_utils.h"
 
 void load_data(const char* data_filepath, const char* dp_id_filepath,
-               double** data_out, int** dp_ids_out, int* length_out) {
+               double** data_out, int64_t** dp_ids_out, int64_t* length_out) {
     
     FILE* data_file = fopen(data_filepath, "r");
     FILE* dp_id_file = fopen(dp_id_filepath, "r");
@@ -55,11 +31,11 @@ void load_data(const char* data_filepath, const char* dp_id_filepath,
     
     
     line = stFile_getLineFromFile(dp_id_file);
-    int* dp_id_ptr;
+    int64_t* dp_id_ptr;
     while (line != NULL) {
-        dp_id_ptr = (int*) malloc(sizeof(int));
+        dp_id_ptr = (int64_t*) malloc(sizeof(int64_t));
         
-        sscanf(line, "%d", dp_id_ptr);
+        sscanf(line, "%lld", dp_id_ptr);
         
         stList_append(dp_id_list, dp_id_ptr);
         
@@ -67,11 +43,11 @@ void load_data(const char* data_filepath, const char* dp_id_filepath,
         line = stFile_getLineFromFile(dp_id_file);
     }
     
-    int data_length;
-    int dp_ids_length;
+    int64_t data_length;
+    int64_t dp_ids_length;
     
     double* data = stList_toDoublePtr(data_list, &data_length);
-    int* dp_ids = stList_toIntPtr(dp_id_list, &dp_ids_length);
+    int64_t* dp_ids = stList_toIntPtr(dp_id_list, &dp_ids_length);
     
     if (data_length != dp_ids_length) {
         fprintf(stderr, "Data and DP ID files have different lengths\n");
@@ -89,7 +65,7 @@ void load_data(const char* data_filepath, const char* dp_id_filepath,
     fclose(dp_id_file);
 }
 
-void write_double_data(FILE* f, double* data, int length) {
+void write_double_data(FILE* f, double* data, int64_t length) {
     if (length <= 0) {
         return;
     }
@@ -99,17 +75,17 @@ void write_double_data(FILE* f, double* data, int length) {
     }
 }
 
-void write_int_data(FILE* f, int* data, int length) {
+void write_int_data(FILE* f, int64_t* data, int64_t length) {
     if (length <= 0) {
         return;
     }
-    fprintf(f, "%d", data[0]);
-    for (int i = 1; i < length; i++) {
-        fprintf(f, "\n%d", data[i]);
+    fprintf(f, "%lld", data[0]);
+    for (int64_t i = 1; i < length; i++) {
+        fprintf(f, "\n%lld", data[i]);
     }
 }
 
-void output_distrs_to_disk(HierarchicalDirichletProcess* hdp, double* grid, int grid_length, int num_dps) {
+void output_distrs_to_disk(HierarchicalDirichletProcess* hdp, double* grid, int64_t grid_length, int64_t num_dps) {
     FILE* x = fopen("x_vals.txt", "w");
     write_double_data(x, grid, grid_length);
     fclose(x);
@@ -117,11 +93,11 @@ void output_distrs_to_disk(HierarchicalDirichletProcess* hdp, double* grid, int 
     char file_name[30];
     
     double* pdf = (double*) malloc(sizeof(double) * grid_length);
-    for (int i = 0; i < num_dps; i++) {
-        for (int j = 0; j < grid_length; j++) {
+    for (int64_t i = 0; i < num_dps; i++) {
+        for (int64_t j = 0; j < grid_length; j++) {
             pdf[j] = dir_proc_density(hdp, grid[j], i);
         }
-        sprintf(file_name, "dp_%d_distr.txt", i);
+        sprintf(file_name, "dp_%lld_distr.txt", i);
         FILE* out = fopen(file_name, "w");
         write_double_data(out, pdf, grid_length);
         fclose(out);
@@ -153,11 +129,11 @@ void record_snapshots_to_files(HierarchicalDirichletProcess* hdp, void* snapshot
     FILE* gamma_params_file = fopen(snapshot_args.gamma_params_filepath, "a");
     FILE* log_likelihood_file = fopen(snapshot_args.log_likelihood_filepath, "a");
     
-    int* num_dp_factors;
-    int num_dps;
+    int64_t* num_dp_factors;
+    int64_t num_dps;
     
     double* gamma_params;
-    int num_gamma_params;
+    int64_t num_gamma_params;
     
     double log_likelihood;
     
@@ -165,15 +141,15 @@ void record_snapshots_to_files(HierarchicalDirichletProcess* hdp, void* snapshot
     
     fprintf(log_likelihood_file, "%lf\n", log_likelihood);
     
-    for (int i = 0; i < num_gamma_params - 1; i++) {
+    for (int64_t i = 0; i < num_gamma_params - 1; i++) {
         fprintf(gamma_params_file, "%lf\t", gamma_params[i]);
     }
     fprintf(gamma_params_file, "%lf\n", gamma_params[num_gamma_params - 1]);
     
-    for (int i = 0; i < num_dps - 1; i++) {
-        fprintf(num_dp_factors_file, "%d\t", num_dp_factors[i]);
+    for (int64_t i = 0; i < num_dps - 1; i++) {
+        fprintf(num_dp_factors_file, "%lld\t", num_dp_factors[i]);
     }
-    fprintf(num_dp_factors_file, "%d\n", num_dp_factors[num_dps - 1]);
+    fprintf(num_dp_factors_file, "%lld\n", num_dp_factors[num_dps - 1]);
     
     fclose(num_dp_factors_file);
     fclose(gamma_params_file);
@@ -207,9 +183,9 @@ int main(int argc, char* argv[]) {
     }
 	
     // the Dirichlet processes are the numbered boxes
-    int num_dir_proc = 8;
+    int64_t num_dir_proc = 8;
     // the depth of the tree
-    int depth = 3;
+    int64_t depth = 3;
 
     // parameters of the normal inverse gamma  base distribution
     double mu = 0.0;
@@ -218,7 +194,7 @@ int main(int argc, char* argv[]) {
     double beta = 10.0;
 
     // the grid along which the HDP will record distribution samples
-    int grid_length = 250;
+    int64_t grid_length = 250;
     double grid_start = -10.0;
     double grid_end = 10.0;
 
@@ -260,17 +236,17 @@ int main(int argc, char* argv[]) {
     
     fprintf(stderr, "Loading data from disk...\n");
     double* data;
-    int* data_pt_dps;
-    int data_length;
+    int64_t* data_pt_dps;
+    int64_t data_length;
     load_data("/Users/Jordan/Documents/GitHub/hdp_mixture/test/data.txt",
               "/Users/Jordan/Documents/GitHub/hdp_mixture/test/dps.txt",
               &data, &data_pt_dps, &data_length);
     
-    int new_data_length = data_length / 2;
+    int64_t new_data_length = data_length / 2;
     double* new_data = (double*) malloc(sizeof(double) * new_data_length);
-    int* new_data_pt_dps = (int*) malloc(sizeof(int) * new_data_length);
+    int64_t* new_data_pt_dps = (int64_t*) malloc(sizeof(int64_t) * new_data_length);
     
-    for (int i = 0; i < new_data_length; i++) {
+    for (int64_t i = 0; i < new_data_length; i++) {
         new_data[i] = data[i] + 1.0;
         new_data_pt_dps[i] = data_pt_dps[i];
     }
@@ -280,9 +256,9 @@ int main(int argc, char* argv[]) {
     // note: you can also pass data before finalizing the structure
     // note: it is not necessary to observe every Dirichlet process in the data
     
-    int num_samples = 15000;
-    int burn_in = 100000;
-    int thinning = 100;
+    int64_t num_samples = 15000;
+    int64_t burn_in = 100000;
+    int64_t thinning = 100;
 
     // choose whether to Gibbs sample only the distributions or to also supply a
     // snapshot function that samples at the beginning of each Gibbs sweep
@@ -307,14 +283,14 @@ int main(int argc, char* argv[]) {
 
     // query with new values
     double x = 2.1;
-    int dp_id = 4;
+    int64_t dp_id = 4;
     double density = dir_proc_density(hdp, x, dp_id);
 
-    int x_len = 200;
+    int64_t x_len = 200;
     double x_start = -10.0;
     double x_end = 10.0;
     double* x_vals = (double*) malloc(sizeof(double) * x_len);
-    for (int i = 0; i < x_len; i++) {
+    for (int64_t i = 0; i < x_len; i++) {
         x_vals[i] = x_start + ((double) i) * (x_end - x_start) / ((double) (x_len - 1));
     }
 
