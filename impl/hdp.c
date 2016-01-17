@@ -86,15 +86,15 @@ struct HierarchicalDirichletProcess {
     bool* s_aux_vector;
 };
 
-bool structure_finalized(HierarchicalDirichletProcess* hdp) {
+bool is_structure_finalized(HierarchicalDirichletProcess* hdp) {
     return hdp->finalized;
 }
 
-bool sampling_gamma(HierarchicalDirichletProcess* hdp) {
+bool is_gamma_random(HierarchicalDirichletProcess* hdp) {
     return hdp->sample_gamma;
 }
 
-bool distributions_finalized(HierarchicalDirichletProcess* hdp) {
+bool is_sampling_finalized(HierarchicalDirichletProcess* hdp) {
     return hdp->splines_finalized;
 }
 

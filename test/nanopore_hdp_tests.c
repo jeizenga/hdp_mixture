@@ -94,6 +94,14 @@ void test_word_id_to_multiset_id(CuTest* ct) {
     
 }
 
+void test_kmer_id(CuTest* ct) {
+    CuAssertIntEquals(ct, kmer_id("AAAC", "ACGT", 4, 4), 1);
+    CuAssertIntEquals(ct, kmer_id("AAAT", "ACGT", 4, 4), 3);
+    CuAssertIntEquals(ct, kmer_id("AAAT", "ACT", 3, 4), 2);
+    CuAssertIntEquals(ct, kmer_id("GGGG", "ABCDEFG", 7, 4), power(7, 4) - 1);
+    CuAssertIntEquals(ct, standard_kmer_id("AACAA", 5), 16);
+}
+
 CuSuite* get_suite() {
     
     CuSuite* suite = CuSuiteNew();
@@ -103,6 +111,7 @@ CuSuite* get_suite() {
     SUITE_ADD_TEST(suite, test_sixth_kmer_index);
     SUITE_ADD_TEST(suite, test_multiset_creation);
     SUITE_ADD_TEST(suite, test_word_id_to_multiset_id);
+    SUITE_ADD_TEST(suite, test_kmer_id);
     
     return suite;
 }

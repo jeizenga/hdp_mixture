@@ -16,11 +16,11 @@ void add_hdp_copy_tests(CuTest* ct, HierarchicalDirichletProcess* original_hdp,
                         HierarchicalDirichletProcess* copy_hdp) {
     
     CuAssertIntEquals_Msg(ct, "struct finalized fail, check output .hdp files",
-                          (int) structure_finalized(original_hdp), (int) structure_finalized(copy_hdp));
+                          (int) is_structure_finalized(original_hdp), (int) is_structure_finalized(copy_hdp));
     CuAssertIntEquals_Msg(ct, "sampling gamma fail, check output .hdp files",
-                          (int) sampling_gamma(original_hdp), (int) sampling_gamma(copy_hdp));
+                          (int) is_gamma_random(original_hdp), (int) is_gamma_random(copy_hdp));
     CuAssertIntEquals_Msg(ct, "distr finalized fail, check output .hdp files",
-                          (int) distributions_finalized(original_hdp), (int) distributions_finalized(copy_hdp));
+                          (int) is_sampling_finalized(original_hdp), (int) is_sampling_finalized(copy_hdp));
     CuAssertIntEquals_Msg(ct,  "num dir proc fail, check output .hdp files",
                           (int) get_num_dir_proc(original_hdp), (int) get_num_dir_proc(copy_hdp));
     CuAssertIntEquals_Msg(ct, "depth fail, check output .hdp files",
@@ -111,7 +111,7 @@ void add_hdp_copy_tests(CuTest* ct, HierarchicalDirichletProcess* original_hdp,
                               original_grid[i], copy_grid[i], 0.000001);
     }
     
-    if (distributions_finalized(original_hdp) && distributions_finalized(copy_hdp)) {
+    if (is_sampling_finalized(original_hdp) && is_sampling_finalized(copy_hdp)) {
         int64_t test_grid_length = grid_length / 2;
         double* test_grid = linspace(1.1 * original_grid[0],
                                      1.1 * original_grid[grid_length - 1], test_grid_length);

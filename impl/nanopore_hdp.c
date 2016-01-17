@@ -8,6 +8,7 @@
 
 // in 0-based index
 #define ALIGNMENT_KMER_COL 9
+#define ALIGNMENT_STRAND_COL 5
 #define ALIGNMENT_SIGNAL_COL 13
 #define NUM_ALIGNMENT_COLS 14
 
@@ -18,11 +19,92 @@
 #include <stdio.h>
 #include <stdbool.h>
 #include <stdlib.h>
+#include <string.h>
 #include <inttypes.h>
 #include "hdp.h"
 #include "hdp_math_utils.h"
 #include "nanopore_hdp.h"
 #include "sonLib.h"
+
+struct NanoporeHDP {
+    HierarchicalDirichletProcess* hdp;
+    char* alphabet;
+    int64_t alphabet_size;
+    int64_t kmer_length;
+};
+
+NanoporeHDP* package_nanopore_hdp(HierarchicalDirichletProcess* hdp, const char* alphabet, int64_t alphabet_size,
+                                  int64_t kmer_length) {
+    
+    NanoporeHDP* nhdp = (NanoporeHDP*) malloc(sizeof(NanoporeHDP));
+    
+    // copy and sort alphabet
+    char* internal_alphabet = (char*) malloc(sizeof(char) * alphabet_size);
+    for (int64_t i = 0; i < alphabet_size; i++) {
+        internal_alphabet[i] = alphabet[i];
+    }
+    
+    int64_t min_idx;
+    char temp;
+    for (int64_t i = 0; i < alphabet_size; i++) {
+        min_idx = i;
+        for (int64_t j = i + 1; j < alphabet_size; j++) {
+            if (internal_alphabet[j] < internal_alphabet[min_idx]) {
+                min_idx = j;
+            }
+        }
+        temp = internal_alphabet[i];
+        internal_alphabet[i] = internal_alphabet[min_idx];
+        internal_alphabet[min_idx] = temp;
+    }
+    
+    nhdp->hdp = hdp;
+    nhdp->alphabet = internal_alphabet;
+    nhdp->alphabet_size = alphabet_size;
+    nhdp->kmer_length = kmer_length;
+    
+    return nhdp;
+}
+
+void destroy_nanopore_hdp(NanoporeHDP* nhdp) {
+    destroy_hier_dir_proc(nhdp->hdp);
+    free(nhdp->alphabet);
+    free(nhdp);
+}
+
+int64_t get_nanopore_hdp_kmer_length(NanoporeHDP* nhdp) {
+    return nhdp->kmer_length;
+}
+
+
+int64_t get_nanopore_hdp_alphabet_size(NanoporeHDP* nhdp) {
+    return nhdp->alphabet_size;
+}
+
+char* get_nanopore_hdp_alphabet(NanoporeHDP* nhdp) {
+    char* alphabet = nhdp->alphabet;
+    int64_t alphabet_size = nhdp->alphabet_size;
+    char* copy = (char*) malloc(sizeof(char) * alphabet_size);
+    for (int64_t i = 0; i < alphabet_size; i++) {
+        copy[i] = alphabet[i];
+    }
+    return copy;
+}
+
+
+// wrappers
+void execute_nhdp_gibbs_sampling(NanoporeHDP* nhdp, int64_t num_samples, int64_t burn_in,
+                                 int64_t thinning) {
+    execute_gibbs_sampling(nhdp->hdp, num_samples, burn_in,thinning);
+}
+
+void execute_nhdp_gibbs_sampling_with_snapshots(NanoporeHDP* nhdp,
+                                                int64_t num_samples, int64_t burn_in, int64_t thinning,
+                                                void (*snapshot_func)(HierarchicalDirichletProcess*, void*),
+                                                void* snapshot_func_args) {
+    execute_gibbs_sampling_with_snapshots(nhdp->hdp, num_samples, burn_in, thinning, snapshot_func, snapshot_func_args);
+}
+
 
 void normal_inverse_gamma_params_from_minION(const char* model_filepath, double* mu_out, double* nu_out,
                                              double* alpha_out, double* beta_out) {
@@ -74,8 +156,12 @@ HierarchicalDirichletProcess* minION_hdp_2(int64_t num_dps, int64_t depth, doubl
                                sampling_grid_stop, sampling_grid_length, mu, nu, alpha, beta);
 }
 
-void update_hdp_from_alignment(HierarchicalDirichletProcess* hdp, const char* alignment_filepath,
-                               int64_t (*kmer_to_dp_id_func) (char*), bool has_header) {
+void update_nhdp_from_alignment(NanoporeHDP* nhdp, const char* alignment_filepath, bool has_header) {
+    update_nhdp_from_alignment_with_filter(nhdp, alignment_filepath, has_header, NULL);
+}
+
+void update_nhdp_from_alignment_with_filter(NanoporeHDP* nhdp, const char* alignment_filepath,
+                                            bool has_header, const char* strand_filter) {
     
     stList* signal_list = stList_construct3(0, &free);
     stList* dp_id_list = stList_construct3(0, &free);
@@ -85,6 +171,7 @@ void update_hdp_from_alignment(HierarchicalDirichletProcess* hdp, const char* al
     stList* tokens;
     int64_t line_length;
     char* kmer;
+    char* strand;
     char* signal_str;
     int64_t* dp_id_ptr;
     double* signal_ptr;
@@ -105,17 +192,20 @@ void update_hdp_from_alignment(HierarchicalDirichletProcess* hdp, const char* al
             }
         }
         
-        signal_str = (char*) stList_get(tokens, ALIGNMENT_SIGNAL_COL);
-        kmer = (char*) stList_get(tokens, ALIGNMENT_KMER_COL);
+        strand = (char*) stList_get(tokens, ALIGNMENT_STRAND_COL);
         
-        signal_ptr = (double*) malloc(sizeof(double));
-        dp_id_ptr = (int64_t*) malloc(sizeof(int64_t));
-        
-        sscanf(signal_str, "%lf", signal_ptr);
-        *dp_id_ptr = kmer_to_dp_id_func(kmer);
-        
-        stList_append(signal_list, signal_ptr);
-        stList_append(dp_id_list, dp_id_ptr);
+        if (strcmp(strand, strand_filter) == 0 || strand_filter == NULL) {
+            signal_str = (char*) stList_get(tokens, ALIGNMENT_SIGNAL_COL);
+            kmer = (char*) stList_get(tokens, ALIGNMENT_KMER_COL);
+            
+            signal_ptr = (double*) malloc(sizeof(double));
+            dp_id_ptr = (int64_t*) malloc(sizeof(int64_t));
+            sscanf(signal_str, "%lf", signal_ptr);
+            *dp_id_ptr = kmer_id(kmer, nhdp->alphabet, nhdp->alphabet_size, nhdp->kmer_length);
+            
+            stList_append(signal_list, signal_ptr);
+            stList_append(dp_id_list, dp_id_ptr);
+        }
         
         stList_destruct(tokens);
         free(line);
@@ -132,8 +222,8 @@ void update_hdp_from_alignment(HierarchicalDirichletProcess* hdp, const char* al
     stList_destruct(signal_list);
     stList_destruct(dp_id_list);
     
-    reset_hdp_data(hdp);
-    pass_data_to_hdp(hdp, signal, dp_ids, data_length);
+    reset_hdp_data(nhdp->hdp);
+    pass_data_to_hdp(nhdp->hdp, signal, dp_ids, data_length);
 }
 
 
@@ -221,11 +311,47 @@ int64_t word_id_to_multiset_id(int64_t word_id, int64_t alphabet_size, int64_t w
     return id;
 }
 
+int64_t word_id(int64_t* word, int64_t alphabet_size, int64_t word_length) {
+    int64_t id = 0;
+    int64_t step = 1;
+    for (int64_t i = word_length - 1; i >= 0; i--) {
+        id += step * word[i];
+        step *= alphabet_size;
+    }
+    return id;
+}
 
-                                        
-                                        
-                                        
-                                        
+int64_t* kmer_to_word(char* kmer, char* alphabet, int64_t alphabet_size, int64_t kmer_length) {
+    int64_t* word = (int64_t*) malloc(sizeof(int64_t) * kmer_length);
+    for (int64_t i = 0; i < kmer_length; i++) {
+        int64_t j = 0;
+        while (kmer[i] != alphabet[j]) {
+            j++;
+            if (j == alphabet_size) {
+                fprintf(stderr, "K-mer contains character outside alphabet.\n");
+                exit(EXIT_FAILURE);
+            }
+        }
+        word[i] = j;
+    }
+    return word;
+}
+
+int64_t kmer_id(char* kmer, char* alphabet, int64_t alphabet_size, int64_t kmer_length) {
+    int64_t* word = kmer_to_word(kmer, alphabet, alphabet_size, kmer_length);
+    int64_t id = word_id(word, alphabet_size, kmer_length);
+    free(word);
+    return id;
+}
+
+int64_t standard_kmer_id(char* kmer, int64_t kmer_length) {
+    return kmer_id(kmer, "ACGT", 4, kmer_length);
+}
+
+double get_nanopore_kmer_density(NanoporeHDP* nhdp, double x, char* kmer) {
+    int64_t dp_id = kmer_id(kmer, nhdp->alphabet, nhdp->alphabet_size, nhdp->kmer_length);
+    return dir_proc_density(nhdp->hdp, x, dp_id);
+}
 
 int64_t flat_hdp_num_dps(int64_t alphabet_size, int64_t kmer_length) {
     int64_t num_leaves = power(alphabet_size, kmer_length);
@@ -240,10 +366,9 @@ void flat_hdp_model_internal(HierarchicalDirichletProcess* hdp, int64_t alphabet
     }
 }
 
-HierarchicalDirichletProcess* flat_hdp_model(int64_t alphabet_size, int64_t kmer_length, double base_gamma,
-                                             double leaf_gamma, double sampling_grid_start,
-                                             double sampling_grid_stop, int64_t sampling_grid_length,
-                                             const char* model_filepath) {
+NanoporeHDP* flat_hdp_model(const char* alphabet, int64_t alphabet_size, int64_t kmer_length, double base_gamma,
+                            double leaf_gamma, double sampling_grid_start, double sampling_grid_stop,
+                            int64_t sampling_grid_length, const char* model_filepath) {
     
     double* gamma_params = (double*) malloc(sizeof(double) * 2);
     gamma_params[0] = base_gamma;
@@ -257,15 +382,15 @@ HierarchicalDirichletProcess* flat_hdp_model(int64_t alphabet_size, int64_t kmer
     
     flat_hdp_model_internal(hdp, alphabet_size, kmer_length);
     
-    return hdp;
+    NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
+    
+    return nhdp;
 }
 
-HierarchicalDirichletProcess* flat_hdp_model_2(int64_t alphabet_size, int64_t kmer_length,
-                                               double base_gamma_alpha, double base_gamma_beta,
-                                               double leaf_gamma_alpha, double leaf_gamma_beta,
-                                               double sampling_grid_start, double sampling_grid_stop,
-                                               int64_t sampling_grid_length,
-                                               const char* model_filepath) {
+NanoporeHDP* flat_hdp_model_2(const char* alphabet, int64_t alphabet_size, int64_t kmer_length,
+                              double base_gamma_alpha, double base_gamma_beta, double leaf_gamma_alpha,
+                              double leaf_gamma_beta, double sampling_grid_start, double sampling_grid_stop,
+                              int64_t sampling_grid_length, const char* model_filepath) {
     
     double* gamma_alpha = (double*) malloc(sizeof(double) * 2);
     gamma_alpha[0] = base_gamma_alpha;
@@ -283,7 +408,9 @@ HierarchicalDirichletProcess* flat_hdp_model_2(int64_t alphabet_size, int64_t km
     
     flat_hdp_model_internal(hdp, alphabet_size, kmer_length);
     
-    return hdp;
+    NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
+    
+    return nhdp;
 }
 
 int64_t multiset_hdp_num_dps(int64_t alphabet_size, int64_t kmer_length) {
@@ -310,11 +437,10 @@ void multiset_hdp_model_internal(HierarchicalDirichletProcess* hdp, int64_t alph
     }
 }
 
-HierarchicalDirichletProcess* multiset_hdp_model(int64_t alphabet_size, int64_t kmer_length, double base_gamma,
-                                                 double middle_gamma, double leaf_gamma,
-                                                 double sampling_grid_start,
-                                                 double sampling_grid_stop, int64_t sampling_grid_length,
-                                                 const char* model_filepath) {
+NanoporeHDP* multiset_hdp_model(const char* alphabet, int64_t alphabet_size, int64_t kmer_length,
+                                double base_gamma, double middle_gamma, double leaf_gamma,
+                                double sampling_grid_start, double sampling_grid_stop, int64_t sampling_grid_length,
+                                const char* model_filepath) {
     
     double* gamma_params = (double*) malloc(sizeof(double) * 3);
     gamma_params[0] = base_gamma;
@@ -329,16 +455,16 @@ HierarchicalDirichletProcess* multiset_hdp_model(int64_t alphabet_size, int64_t 
     
     multiset_hdp_model_internal(hdp, alphabet_size, kmer_length);
     
-    return hdp;
+    NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
+    
+    return nhdp;
 }
 
-HierarchicalDirichletProcess* multiset_hdp_model_2(int64_t alphabet_size, int64_t kmer_length,
-                                                   double base_gamma_alpha, double base_gamma_beta,
-                                                   double middle_gamma_alpha, double middle_gamma_beta,
-                                                   double leaf_gamma_alpha, double leaf_gamma_beta,
-                                                   double sampling_grid_start, double sampling_grid_stop,
-                                                   int64_t sampling_grid_length,
-                                                   const char* model_filepath) {
+NanoporeHDP* multiset_hdp_model_2(const char* alphabet, int64_t alphabet_size, int64_t kmer_length,
+                                  double base_gamma_alpha, double base_gamma_beta, double middle_gamma_alpha,
+                                  double middle_gamma_beta, double leaf_gamma_alpha, double leaf_gamma_beta,
+                                  double sampling_grid_start, double sampling_grid_stop, int64_t sampling_grid_length,
+                                  const char* model_filepath) {
     
     double* gamma_alpha = (double*) malloc(sizeof(double) * 3);
     gamma_alpha[0] = base_gamma_alpha;
@@ -359,7 +485,9 @@ HierarchicalDirichletProcess* multiset_hdp_model_2(int64_t alphabet_size, int64_
     
     multiset_hdp_model_internal(hdp, alphabet_size, kmer_length);
     
-    return hdp;
+    NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
+    
+    return nhdp;
 }
 
 int64_t middle_2_nts_hdp_num_dps(int64_t alphabet_size, int64_t kmer_length) {
@@ -394,11 +522,10 @@ void middle_2_nts_hdp_model_internal(HierarchicalDirichletProcess* hdp, int64_t 
     }
 }
 
-HierarchicalDirichletProcess* middle_2_nts_hdp_model(int64_t alphabet_size, int64_t kmer_length, double base_gamma,
-                                                     double middle_gamma, double leaf_gamma,
-                                                     double sampling_grid_start,
-                                                     double sampling_grid_stop, int64_t sampling_grid_length,
-                                                     const char* model_filepath) {
+NanoporeHDP* middle_2_nts_hdp_model(const char* alphabet, int64_t alphabet_size, int64_t kmer_length,
+                                    double base_gamma, double middle_gamma, double leaf_gamma,
+                                    double sampling_grid_start, double sampling_grid_stop, int64_t sampling_grid_length,
+                                    const char* model_filepath) {
     if (kmer_length % 2 != 0) {
         fprintf(stderr, "Warning: middle 2 nucleotides of odd length kmer is ambiguous. Resolving arbitrarily.\n");
     }
@@ -416,16 +543,16 @@ HierarchicalDirichletProcess* middle_2_nts_hdp_model(int64_t alphabet_size, int6
     
     middle_2_nts_hdp_model_internal(hdp, alphabet_size, kmer_length);
     
-    return hdp;
+    NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
+    
+    return nhdp;
 }
 
-HierarchicalDirichletProcess* middle_2_nts_hdp_model_2(int64_t alphabet_size, int64_t kmer_length,
-                                                       double base_gamma_alpha, double base_gamma_beta,
-                                                       double middle_gamma_alpha, double middle_gamma_beta,
-                                                       double leaf_gamma_alpha, double leaf_gamma_beta,
-                                                       double sampling_grid_start, double sampling_grid_stop,
-                                                       int64_t sampling_grid_length,
-                                                       const char* model_filepath) {
+NanoporeHDP* middle_2_nts_hdp_model_2(const char* alphabet, int64_t alphabet_size, int64_t kmer_length,
+                                      double base_gamma_alpha, double base_gamma_beta, double middle_gamma_alpha,
+                                      double middle_gamma_beta, double leaf_gamma_alpha, double leaf_gamma_beta,
+                                      double sampling_grid_start, double sampling_grid_stop,
+                                      int64_t sampling_grid_length, const char* model_filepath) {
     if (kmer_length % 2 != 0) {
         fprintf(stderr, "Warning: middle 2 nucleotides of odd length kmer is ambiguous. Resolving arbitrarily.\n");
     }
@@ -448,5 +575,8 @@ HierarchicalDirichletProcess* middle_2_nts_hdp_model_2(int64_t alphabet_size, in
     
     middle_2_nts_hdp_model_internal(hdp, alphabet_size, kmer_length);
     
-    return hdp;
+    NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
+    
+    return nhdp;
 }
+

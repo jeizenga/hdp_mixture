@@ -11,6 +11,7 @@ typedef struct HierarchicalDirichletProcess HierarchicalDirichletProcess;
 HierarchicalDirichletProcess* new_hier_dir_proc(int64_t num_dps, int64_t depth, double* gamma, double sampling_grid_start,
                                                 double sampling_grid_stop, int64_t sampling_grid_length, double mu,
                                                 double nu, double alpha, double beta);
+
 HierarchicalDirichletProcess* new_hier_dir_proc_2(int64_t num_dps, int64_t depth, double* gamma_alpha, double* gamma_beta,
                                                   double sampling_grid_start, double sampling_grid_stop,
                                                   int64_t sampling_grid_length, double mu, double nu, double alpha,
@@ -51,9 +52,9 @@ void take_snapshot(HierarchicalDirichletProcess* hdp, int64_t** num_dp_fctrs_out
 
 // get methods
 
-bool structure_finalized(HierarchicalDirichletProcess* hdp);
-bool sampling_gamma(HierarchicalDirichletProcess* hdp);
-bool distributions_finalized(HierarchicalDirichletProcess* hdp);
+bool is_structure_finalized(HierarchicalDirichletProcess* hdp);
+bool is_gamma_random(HierarchicalDirichletProcess* hdp);
+bool is_sampling_finalized(HierarchicalDirichletProcess* hdp);
 int64_t get_num_dir_proc(HierarchicalDirichletProcess* hdp);
 int64_t get_depth(HierarchicalDirichletProcess* hdp);
 int64_t get_num_data(HierarchicalDirichletProcess* hdp);
