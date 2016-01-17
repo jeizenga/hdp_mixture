@@ -16,54 +16,54 @@
 // for fixed concentration parameters 'gamma' for each depth
 HierarchicalDirichletProcess* minION_hdp(int64_t num_dps, int64_t depth, double* gamma, double sampling_grid_start,
                                          double sampling_grid_stop, int64_t sampling_grid_length,
-                                         const char* signal_lookup_table_filepath);
+                                         const char* model_filepath);
 
 // Gamma distribution prior on the concentration parameters 'gamma'
 // must designate vector of 'alpha' and 'beta' parameters of distribution for each depth
 HierarchicalDirichletProcess* minION_hdp_2(int64_t num_dps, int64_t depth, double* gamma_alpha,
                                            double* gamma_beta, double sampling_grid_start,
                                            double sampling_grid_stop, int64_t sampling_grid_length,
-                                           const char* signal_lookup_table_filepath);
+                                           const char* model_filepath);
 
-// single level HDPs
+// single level HDP
 HierarchicalDirichletProcess* flat_hdp_model(int64_t alphabet_size, int64_t kmer_length, double base_gamma,
                                              double leaf_gamma, double sampling_grid_start,
                                              double sampling_grid_stop, int64_t sampling_grid_length,
-                                             const char* signal_lookup_table_filepath);
+                                             const char* model_filepath);
 HierarchicalDirichletProcess* flat_hdp_model_2(int64_t alphabet_size, int64_t kmer_length,
                                               double base_gamma_alpha, double base_gamma_beta,
                                               double leaf_gamma_alpha, double leaf_gamma_beta,
                                               double sampling_grid_start, double sampling_grid_stop,
                                               int64_t sampling_grid_length,
-                                              const char* signal_lookup_table_filepath);
+                                              const char* model_filepath);
 
 // second level of HDP based on multiset of nucleotides
 HierarchicalDirichletProcess* multiset_hdp_model(int64_t alphabet_size, int64_t kmer_length, double base_gamma,
                                                  double middle_gamma, double leaf_gamma,
                                                  double sampling_grid_start,
                                                  double sampling_grid_stop, int64_t sampling_grid_length,
-                                                 const char* signal_lookup_table_filepath);
+                                                 const char* model_filepath);
 HierarchicalDirichletProcess* multiset_hdp_model_2(int64_t alphabet_size, int64_t kmer_length,
                                                    double base_gamma_alpha, double base_gamma_beta,
                                                    double middle_gamma_alpha, double middle_gamma_beta,
                                                    double leaf_gamma_alpha, double leaf_gamma_beta,
                                                    double sampling_grid_start, double sampling_grid_stop,
                                                    int64_t sampling_grid_length,
-                                                   const char* signal_lookup_table_filepath);
+                                                   const char* model_filepath);
 
 // second level of HDP based on middle 2 nucleotides
 HierarchicalDirichletProcess* middle_2_nts_hdp_model(int64_t alphabet_size, int64_t kmer_length, double base_gamma,
                                                      double middle_gamma, double leaf_gamma,
                                                      double sampling_grid_start,
                                                      double sampling_grid_stop, int64_t sampling_grid_length,
-                                                     const char* signal_lookup_table_filepath);
+                                                     const char* model_filepath);
 HierarchicalDirichletProcess* middle_2_nts_hdp_model_2(int64_t alphabet_size, int64_t kmer_length,
                                                        double base_gamma_alpha, double base_gamma_beta,
                                                        double middle_gamma_alpha, double middle_gamma_beta,
                                                        double leaf_gamma_alpha, double leaf_gamma_beta,
                                                        double sampling_grid_start, double sampling_grid_stop,
                                                        int64_t sampling_grid_length,
-                                                       const char* signal_lookup_table_filepath);
+                                                       const char* model_filepath);
 
 // you write your own function that maps kmers to integers
 void update_hdp_from_alignment(HierarchicalDirichletProcess* hdp, const char* alignment_filepath,

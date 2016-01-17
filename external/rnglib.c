@@ -69,9 +69,6 @@ void advance_state ( int k )
 */
   if ( ! initialized_get ( ) )
   {
-    printf ( "\n" );
-    printf ( "ADVANCE_STATE - Note:\n" );
-    printf ( "  Initializing RNGLIB package.\n" );
     initialize ( );
   }
 /*
@@ -550,9 +547,6 @@ void get_state ( int *cg1, int *cg2 )
 */
   if ( ! initialized_get ( ) )
   {
-    printf ( "\n" );
-    printf ( "GET_STATE - Note:\n" );
-    printf ( "  Initializing RNGLIB package.\n" );
     initialize ( );
   }
 /*
@@ -624,9 +618,6 @@ int i4_uni ( )
 */
   if ( ! initialized_get ( ) )
   {
-    printf ( "\n" );
-    printf ( "I4_UNI - Note:\n" );
-    printf ( "  Initializing RNGLIB package.\n" );
     initialize ( );
   }
 /*
@@ -882,9 +873,6 @@ void init_generator ( int t )
 */
   if ( ! initialized_get ( ) )
   {
-    printf ( "\n" );
-    printf ( "INIT_GENERATOR - Note:\n" );
-    printf ( "  Initializing RNGLIB package.\n" );
     initialize ( );
   }
 /*
@@ -998,10 +986,6 @@ void initialize ( )
 */
   g = 0;
   cgn_set ( g );
-
-  printf ( "\n" );
-  printf ( "INITIALIZE - Note:\n" );
-  printf ( "  The RNGLIB package has been initialized.\n" );
 
   return;
 }
@@ -1485,9 +1469,6 @@ float r4_uni_01 ( )
 */
   if ( ! initialized_get ( ) )
   {
-    printf ( "\n" );
-    printf ( "R4_UNI_01 - Note:\n" );
-    printf ( "  Initializing RNGLIB package.\n" );
     initialize ( );
   }
 /*
@@ -1549,9 +1530,6 @@ double r8_uni_01 ( )
 */
   if ( ! initialized_get ( ) )
   {
-    printf ( "\n" );
-    printf ( "R8_UNI_01 - Note:\n" );
-    printf ( "  Initializing RNGLIB package.\n" );
     initialize ( );
   }
 /*
@@ -1731,9 +1709,6 @@ void set_seed ( int cg1, int cg2 )
 */
   if ( ! initialized_get ( ) )
   {
-    printf ( "\n" );
-    printf ( "SET_SEED - Note:\n" );
-    printf ( "  Initializing RNGLIB package.\n" );
     initialize ( );
   }
 /*

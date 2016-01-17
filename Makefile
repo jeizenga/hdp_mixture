@@ -11,9 +11,10 @@ OBJDIR:=${ROOTDIR}/obj
 EXTERNDIR:=${ROOTDIR}/external
 CFLAGS:=-std=c99 -Wall -Wextra -Wpedantic
 INC:=-I${INCDIR} -I${SONLIBDIR} -I${EXTERNDIR}
+LINK:=-L${SONLIBDIR} -L${OBJDIR} -lm
 SHELL:=/bin/bash
 
-all: ${OBJDIR}/CuTest.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/rnglib.o ${OBJDIR}/ranlib.o ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/hdp.o ${OBJDIR}/nanopore_hdp.o ${BINDIR}/main ${BINDIR}/utils_tests ${BINDIR}/nanopore_hdp_tests
+all: ${OBJDIR}/CuTest.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/rnglib.o ${OBJDIR}/ranlib.o ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/hdp.o ${OBJDIR}/nanopore_hdp.o ${BINDIR}/main ${BINDIR}/utils_tests ${BINDIR}/nanopore_hdp_tests ${BINDIR}/serialization_tests
 
 
 
@@ -44,22 +45,27 @@ ${SONLIBDIR}/sonLib.a:
 	
 ${BINDIR}/main: ${TESTDIR}/main.c ${OBJDIR}/hdp.o ${INCDIR}/hdp.h
 	${CC} ${CFLAGS} -c ${TESTDIR}/main.c ${INC} -o ${OBJDIR}/main.o
-	${CC} ${CFLAGS} ${OBJDIR}/main.o  ${OBJDIR}/hdp.o ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/ranlib.o ${OBJDIR}/rnglib.o ${SONLIBDIR}/sonLib.a ${INC} -L${SONLIBDIR} -L${OBJDIR} -lm -o ${BINDIR}/main
+	${CC} ${CFLAGS} ${OBJDIR}/main.o  ${OBJDIR}/hdp.o ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/ranlib.o ${OBJDIR}/rnglib.o ${SONLIBDIR}/sonLib.a ${INC} ${LINK} -lm -o ${BINDIR}/main
 	chmod +x ${BINDIR}/main
 	rm ${OBJDIR}/main.o
 
-${BINDIR}/utils_tests: ${TESTDIR}/utils_tests.c ${OBJDIR}/hdp_math_utils.o ${INCDIR}/hdp_math_utils.h
+${BINDIR}/utils_tests: ${TESTDIR}/utils_tests.c ${OBJDIR}/hdp_math_utils.o ${INCDIR}/hdp_math_utils.h ${OBJDIR}/CuTest.o
 	${CC} ${CFLAGS} -c ${TESTDIR}/utils_tests.c ${INC} -o ${OBJDIR}/utils_tests.o
-	${CC} ${CFLAGS} ${OBJDIR}/utils_tests.o ${OBJDIR}/hdp_math_utils.o ${SONLIBDIR}/sonLib.a ${INC} -L${OBJDIR} -lm -o ${BINDIR}/utils_tests
+	${CC} ${CFLAGS} ${OBJDIR}/utils_tests.o ${OBJDIR}/hdp_math_utils.o ${SONLIBDIR}/sonLib.a ${INC} ${LINK} -o ${BINDIR}/utils_tests
 	chmod +x ${BINDIR}/utils_tests
 	rm ${OBJDIR}/utils_tests.o
 	
-${BINDIR}/nanopore_hdp_tests: ${TESTDIR}/nanopore_hdp_tests.c ${OBJDIR}/hdp_math_utils.o
+${BINDIR}/nanopore_hdp_tests: ${TESTDIR}/nanopore_hdp_tests.c ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/CuTest.o
 	${CC} ${CFLAGS} -c ${TESTDIR}/nanopore_hdp_tests.c ${INC} -o ${OBJDIR}/nanopore_hdp_tests.o
-	${CC} ${CFLAGS} ${OBJDIR}/nanopore_hdp_tests.o ${OBJDIR}/nanopore_hdp.o ${OBJDIR}/hdp.o ${OBJDIR}/hdp_math_utils.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/ranlib.o ${OBJDIR}/rnglib.o ${OBJDIR}/CuTest.o ${INC} -L${SONLIBDIR} -L${OBJDIR} -lm -o ${BINDIR}/nanopore_hdp_tests
+	${CC} ${CFLAGS} ${OBJDIR}/nanopore_hdp_tests.o ${OBJDIR}/nanopore_hdp.o ${OBJDIR}/hdp.o ${OBJDIR}/hdp_math_utils.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/ranlib.o ${OBJDIR}/rnglib.o ${OBJDIR}/CuTest.o ${INC} ${LINK} -o ${BINDIR}/nanopore_hdp_tests
 	chmod +x ${BINDIR}/nanopore_hdp_tests
 	rm ${OBJDIR}/nanopore_hdp_tests.o
-	
+
+${BINDIR}/serialization_tests: ${TESTDIR}/serialization_tests.c ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/hdp.o ${OBJDIR}/CuTest.o
+	${CC} ${CFLAGS} -c ${TESTDIR}/serialization_tests.c ${INC} -o ${OBJDIR}/serialization_tests.o
+	${CC} ${CFLAGS} ${OBJDIR}/serialization_tests.o ${OBJDIR}/hdp.o ${OBJDIR}/hdp_math_utils.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/ranlib.o ${OBJDIR}/rnglib.o ${OBJDIR}/CuTest.o ${INC} ${LINK} -o ${BINDIR}/serialization_tests
+	chmod +x ${BINDIR}/serialization_tests
+	rm ${OBJDIR}/serialization_tests.o	
 
 clean:
 	@if [ $$(find bin -type f | wc -l) -gt 0 ]; \

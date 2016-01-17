@@ -86,6 +86,138 @@ struct HierarchicalDirichletProcess {
     bool* s_aux_vector;
 };
 
+bool structure_finalized(HierarchicalDirichletProcess* hdp) {
+    return hdp->finalized;
+}
+
+bool sampling_gamma(HierarchicalDirichletProcess* hdp) {
+    return hdp->sample_gamma;
+}
+
+bool distributions_finalized(HierarchicalDirichletProcess* hdp) {
+    return hdp->splines_finalized;
+}
+
+int64_t get_num_dir_proc(HierarchicalDirichletProcess* hdp) {
+    return hdp->num_dps;
+}
+
+int64_t get_depth(HierarchicalDirichletProcess* hdp) {
+    return hdp->depth;
+}
+
+int64_t get_num_data(HierarchicalDirichletProcess* hdp) {
+    return hdp->data_length;
+}
+
+double* get_data_copy(HierarchicalDirichletProcess* hdp) {
+    int64_t data_length = hdp->data_length;
+    double* data = (double*) malloc(sizeof(double) * data_length);
+    for (int64_t i = 0; i < data_length; i++) {
+        data[i] = hdp->data[i];
+    }
+    return data;
+}
+
+int64_t* get_data_pt_dp_ids_copy(HierarchicalDirichletProcess* hdp) {
+    int64_t data_length = hdp->data_length;
+    int64_t* dp_ids = (int64_t*) malloc(sizeof(int64_t) * data_length);
+    for (int64_t i = 0; i < data_length; i++) {
+        dp_ids[i] = hdp->data_pt_dp_id[i];
+    }
+    return dp_ids;
+}
+
+double* get_gamma_params_copy(HierarchicalDirichletProcess* hdp) {
+    int64_t depth = hdp->depth;
+    double* gamma_params = (double*) malloc(sizeof(double) * depth);
+    for (int64_t i = 0; i < depth; i++) {
+        gamma_params[i] = hdp->gamma[i];
+    }
+    return gamma_params;
+}
+
+double get_mu(HierarchicalDirichletProcess* hdp) {
+    return hdp->mu;
+}
+
+double get_nu(HierarchicalDirichletProcess* hdp) {
+    return hdp->nu;
+}
+
+double get_alpha(HierarchicalDirichletProcess* hdp) {
+    return hdp->two_alpha / 2.0;
+}
+
+double get_beta(HierarchicalDirichletProcess* hdp) {
+    return hdp->beta;
+}
+
+int64_t get_grid_length(HierarchicalDirichletProcess* hdp) {
+    return hdp->grid_length;
+}
+
+double* get_sampling_grid_copy(HierarchicalDirichletProcess* hdp) {
+    int64_t grid_length = hdp->grid_length;
+    double* sampling_grid = (double*) malloc(sizeof(double) * grid_length);
+    for (int64_t i = 0; i < grid_length; i++) {
+        sampling_grid[i] = hdp->sampling_grid[i];
+    }
+    return sampling_grid;
+}
+
+double* get_gamma_alpha_params_copy(HierarchicalDirichletProcess* hdp) {
+    if (!hdp->sample_gamma) {
+        fprintf(stderr, "Hierarchical Dirichlet process is not sampling gamma parameters.");
+        exit(EXIT_FAILURE);
+    }
+    int64_t depth = hdp->depth;
+    double* gamma_alpha = (double*) malloc(sizeof(double) * depth);
+    for (int64_t i = 0; i < depth; i++) {
+        gamma_alpha[i] = hdp->gamma_alpha[i];
+    }
+    return gamma_alpha;
+}
+
+double* get_gamma_beta_params_copy(HierarchicalDirichletProcess* hdp) {
+    if (!hdp->sample_gamma) {
+        fprintf(stderr, "Hierarchical Dirichlet process is not sampling gamma parameters.");
+        exit(EXIT_FAILURE);
+    }
+    int64_t depth = hdp->depth;
+    double* gamma_beta = (double*) malloc(sizeof(double) * depth);
+    for (int64_t i = 0; i < depth; i++) {
+        gamma_beta[i] = hdp->gamma_beta[i];
+    }
+    return gamma_beta;
+}
+
+int64_t get_dir_proc_num_factors(HierarchicalDirichletProcess* hdp, int64_t dp_id) {
+    if (dp_id < 0 || dp_id >= hdp->num_dps) {
+        fprintf(stderr, "Hierarchical Dirichlet process has no Dirichlet process with this ID.\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    DirichletProcess* dp = hdp->dps[dp_id];
+    return stSet_size(dp->factors);
+}
+
+int64_t get_dir_proc_parent_id(HierarchicalDirichletProcess* hdp, int64_t dp_id) {
+    if (dp_id < 0 || dp_id >= hdp->num_dps) {
+        fprintf(stderr, "Hierarchical Dirichlet process has no Dirichlet process with this ID.\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    DirichletProcess* dp = hdp->dps[dp_id];
+    if (dp->parent == NULL) {
+        return -1;
+    }
+    else {
+        return dp->parent->id;
+    }
+}
+
+
 void cache_base_factor_params(Factor* fctr, double mu, double nu, double two_alpha, double beta, double log_post_term) {
     if (fctr->factor_type != BASE) {
         fprintf(stderr, "Can only cache parameters for base factors.\n");
@@ -1656,7 +1788,6 @@ double snapshot_factor_log_likelihood(Factor* fctr) {
             if (fctr_option == parent_fctr) {
                 parent_log_prob = log_prob;
             }
-            
         }
         stSet_destructIterator(pool_iter);
         
@@ -1853,7 +1984,7 @@ void serialize_factor_tree_internal(FILE* out, Factor* fctr, int64_t parent_id, 
         fprintf(out, "2\t");
     }
     // parent id
-    if (parent_id >= 0) {
+    if (fctr->factor_type == BASE) {
         fprintf(out, "-\t");
     }
     else {
@@ -1864,9 +1995,9 @@ void serialize_factor_tree_internal(FILE* out, Factor* fctr, int64_t parent_id, 
         // cached params
         double* param_array = fctr->factor_data;
         for (int64_t i = 0; i < N_IG_NUM_PARAMS; i++) {
-            fprintf(out, "%15lf;", param_array[i]);
+            fprintf(out, "%.17lg;", param_array[i]);
         }
-        fprintf(out, "%15lf", param_array[N_IG_NUM_PARAMS]);
+        fprintf(out, "%.17lg", param_array[N_IG_NUM_PARAMS]);
     }
     else if (fctr->factor_type == MIDDLE) {
         // dp id
@@ -1875,22 +2006,23 @@ void serialize_factor_tree_internal(FILE* out, Factor* fctr, int64_t parent_id, 
     else {
         // data index
         uintptr_t data_pos = (uintptr_t) fctr->factor_data;
-        fprintf(out, "%lld", (int64_t) (data_pos - data_start) / sizeof(int64_t));
+        fprintf(out, "%lld", ((int64_t) (data_pos - data_start)) / sizeof(int64_t));
     }
     fprintf(out, "\n");
     
-    stSetIterator* iter = stSet_getIterator(fctr->children);
-    Factor* child_fctr = (Factor*) stSet_getNext(iter);
-    while (child_fctr != NULL) {
-        serialize_factor_tree_internal(out, child_fctr, id, next_fctr_id, data_start);
-        child_fctr = (Factor*) stSet_getNext(iter);
+    if (fctr->children != NULL) {
+        stSetIterator* iter = stSet_getIterator(fctr->children);
+        Factor* child_fctr = (Factor*) stSet_getNext(iter);
+        while (child_fctr != NULL) {
+            serialize_factor_tree_internal(out, child_fctr, id, next_fctr_id, data_start);
+            child_fctr = (Factor*) stSet_getNext(iter);
+        }
+        stSet_destructIterator(iter);
     }
-    stSet_destructIterator(iter);
 }
 
-
-void serialize_hdp(HierarchicalDirichletProcess* hdp, const char* out_filepath) {
-    FILE* out = fopen(out_filepath, "w");
+void serialize_hdp(HierarchicalDirichletProcess* hdp, const char* filepath) {
+    FILE* out = fopen(filepath, "w");
     
     int64_t num_dps = hdp->num_dps;
     int64_t num_data = hdp->data_length;
@@ -1923,9 +2055,9 @@ void serialize_hdp(HierarchicalDirichletProcess* hdp, const char* out_filepath) 
     // data
     if (has_data) {
         for (int64_t i = 0; i < num_data - 1; i++) {
-            fprintf(out, "%15lf\t", data[i]);
+            fprintf(out, "%.17lg\t", data[i]);
         }
-        fprintf(out, "%15lf\n", data[num_data - 1]);
+        fprintf(out, "%.17lg\n", data[num_data - 1]);
         // dp ids
         for (int64_t i = 0; i < num_data - 1; i++) {
             fprintf(out, "%lld\t", dp_ids[i]);
@@ -1933,31 +2065,32 @@ void serialize_hdp(HierarchicalDirichletProcess* hdp, const char* out_filepath) 
         fprintf(out, "%lld\n", dp_ids[num_data - 1]);
     }
     // base params
-    fprintf(out, "%15lf\t%15lf\t%15lf\t%15lf\n", hdp->mu, hdp->nu, (hdp->two_alpha) / 2.0, hdp->beta);
+    fprintf(out, "%.17lg\t%.17lg\t%.17lg\t%.17lg\n", hdp->mu, hdp->nu, (hdp->two_alpha) / 2.0, hdp->beta);
     // sampling grid
-    fprintf(out, "%15lf\t%15lf\t%lld", grid[0], grid[grid_length - 1], grid_length);
+    fprintf(out, "%.17lg\t%.17lg\t%lld\n", grid[0], grid[grid_length - 1], grid_length);
     // gamma
     for (int64_t i = 0; i < depth - 1; i++) {
-        fprintf(out, "%15lf\t", gamma_params[i]);
+        fprintf(out, "%.17lg\t", gamma_params[i]);
     }
-    fprintf(out, "%15lf\n", gamma_params[depth - 1]);
+    fprintf(out, "%.17lg\n", gamma_params[depth - 1]);
     // gamma distr params
+    
     if (hdp->sample_gamma) {
         // alpha
         for (int64_t i = 0; i < depth - 1; i++) {
-            fprintf(out, "%15lf\t", gamma_alpha[i]);
+            fprintf(out, "%.17lg\t", gamma_alpha[i]);
         }
-        fprintf(out, "%15lf\n", gamma_alpha[depth - 1]);
+        fprintf(out, "%.17lg\n", gamma_alpha[depth - 1]);
         // beta
         for (int64_t i = 0; i < depth - 1; i++) {
-            fprintf(out, "%15lf\t", gamma_beta[i]);
+            fprintf(out, "%.17lg\t", gamma_beta[i]);
         }
-        fprintf(out, "%15lf\n", gamma_beta[depth - 1]);
+        fprintf(out, "%.17lg\n", gamma_beta[depth - 1]);
         // w
         for (int64_t i = 0; i < num_dps - 1; i++) {
-            fprintf(out, "%15lf\t", w_aux_vector[i]);
+            fprintf(out, "%.17lg\t", w_aux_vector[i]);
         }
-        fprintf(out, "%15lf\n", w_aux_vector[num_dps - 1]);
+        fprintf(out, "%.17lg\n", w_aux_vector[num_dps - 1]);
         // s
         for (int64_t i = 0; i < num_dps - 1; i++) {
             fprintf(out, "%lld\t", (int64_t) s_aux_vector[i]);
@@ -1971,22 +2104,26 @@ void serialize_hdp(HierarchicalDirichletProcess* hdp, const char* out_filepath) 
         
         // parent
         if (dp == base_dp) {
-            fprintf(out, "-\n");
+            fprintf(out, "-\t%lld\n", dp->num_factor_children);
         }
         else {
             fprintf(out, "%lld\t%lld\n", dp->parent->id, dp->num_factor_children);
         }
     }
     // post preds
-    double* post_pred;
-    for (int64_t i = 0; i < num_dps; i++) {
-        dp = dps[i];
-        post_pred = dp->posterior_predictive;
-        for (int64_t i = 0; i < grid_length - 1; i++) {
-            fprintf(out, "%15lf;", post_pred[i]);
+    if (has_data) {
+        double* post_pred;
+        for (int64_t i = 0; i < num_dps; i++) {
+            dp = dps[i];
+            post_pred = dp->posterior_predictive;
+            if (post_pred != NULL) {
+                for (int64_t j = 0; j < grid_length - 1; j++) {
+                    fprintf(out, "%.17lg\t", post_pred[j]);
+                }
+                fprintf(out, "%.17lg", post_pred[grid_length - 1]);
+            }
+            fprintf(out, "\n");
         }
-        fprintf(out, "%15lf\n", post_pred[grid_length - 1]);
-        
     }
     // spline slopes
     if (hdp->splines_finalized) {
@@ -1994,10 +2131,13 @@ void serialize_hdp(HierarchicalDirichletProcess* hdp, const char* out_filepath) 
         for (int64_t i = 0; i < num_dps; i++) {
             dp = dps[i];
             slopes = dp->spline_slopes;
-            for (int64_t i = 0; i < grid_length - 1; i++) {
-                fprintf(out, "%15lf;", slopes[i]);
+            if (slopes != NULL) {
+                for (int64_t i = 0; i < grid_length - 1; i++) {
+                    fprintf(out, "%.17lg\t", slopes[i]);
+                }
+                fprintf(out, "%.17lg", slopes[grid_length - 1]);
             }
-            fprintf(out, "%15lf\n", slopes[grid_length - 1]);
+            fprintf(out, "\n");
         }
     }
     // factors
@@ -2066,13 +2206,13 @@ HierarchicalDirichletProcess* deserialize_hdp(const char* filepath) {
     // base params
     line = stFile_getLineFromFile(in);
     double mu, nu, alpha, beta;
-    sscanf(line, "%15lf\t%15lf\t%15lf\t%15lf", &mu, &nu, &alpha, &beta);
+    sscanf(line, "%lg\t%lg\t%lg\t%lg", &mu, &nu, &alpha, &beta);
     free(line);
     // sampling grid
     line = stFile_getLineFromFile(in);
     double grid_start, grid_stop;
     int64_t grid_length;
-    sscanf(line, "%15lf\t%15lf\t%lld", &grid_start, &grid_stop, &grid_length);
+    sscanf(line, "%lg\t%lg\t%lld", &grid_start, &grid_stop, &grid_length);
     free(line);
     // gamma
     line = stFile_getLineFromFile(in);
@@ -2137,31 +2277,18 @@ HierarchicalDirichletProcess* deserialize_hdp(const char* filepath) {
                                   grid_stop, grid_length, mu, nu, alpha, beta);
         for (int64_t i = 0; i < depth; i++) {
             hdp->gamma[i] = gamma_params[i];
-            free(gamma_params);
         }
+        free(gamma_params);
         for (int64_t i = 0; i < num_dps; i++) {
             hdp->w_aux_vector[i] = w[i];
             hdp->s_aux_vector[i] = s[i];
-            free(w);
-            free(s);
         }
+        free(w);
+        free(s);
     }
     else {
         hdp = new_hier_dir_proc(num_dps, depth, gamma_params, grid_start, grid_stop,
                                 grid_length, mu, nu, alpha, beta);
-    }
-    
-    finalize_hdp_structure(hdp);
-    
-    // give it data
-    if (has_data) {
-        // note: don't use give_hdp_data because want to manually init factors
-        hdp->data = data;
-        hdp->data_pt_dp_id = dp_ids;
-        hdp->data_length = data_length;
-        
-        verify_valid_dp_assignments(hdp);
-        mark_observed_dps(hdp);
     }
     
     DirichletProcess** dps = hdp->dps;
@@ -2177,39 +2304,61 @@ HierarchicalDirichletProcess* deserialize_hdp(const char* filepath) {
             set_dir_proc_parent(hdp, id, parent_id);
             (dps[id])->num_factor_children = num_factor_children;
         }
+        else {
+            sscanf(line, "-\t%lld", &num_factor_children);
+            (dps[id])->num_factor_children = num_factor_children;        }
         free(line);
     }
     
-    // post predictives
-    double* post_pred;
-    for (int64_t id = 0; id < num_dps; id++) {
-        dp = dps[id];
-        post_pred = dp->posterior_predictive;
+    finalize_hdp_structure(hdp);
+    
+    // give it data
+    if (has_data) {
+        // note: don't use pass_hdp_data because want to manually init factors
+        hdp->data = data;
+        hdp->data_pt_dp_id = dp_ids;
+        hdp->data_length = data_length;
         
-        line = stFile_getLineFromFile(in);
-        tokens = stString_split(line);
-        for (int64_t i = 0; i < grid_length; i++) {
-            sscanf((char*) stList_get(tokens, i), "%lf", &(post_pred[i]));
+        verify_valid_dp_assignments(hdp);
+        mark_observed_dps(hdp);
+        
+        // post predictives
+        double* post_pred;
+        for (int64_t id = 0; id < num_dps; id++) {
+            dp = dps[id];
+            
+            line = stFile_getLineFromFile(in);
+            stList* tokens = stString_split(line);
+            if (stList_length(tokens) != 0) {
+                free(dp->posterior_predictive);
+                dp->posterior_predictive = (double*) malloc(sizeof(double) * grid_length);
+                post_pred = dp->posterior_predictive;
+                for (int64_t i = 0; i < grid_length; i++) {
+                    sscanf((char*) stList_get(tokens, i), "%lf\n", &(post_pred[i]));
+                }
+            }
+            free(line);
+            stList_destruct(tokens);
         }
-        free(line);
-        stList_destruct(tokens);
     }
-    free(post_pred);
     
+    double* spline_slopes;
     if (splines_finalized) {
         hdp->splines_finalized = true;
         for (int64_t id = 0; id < num_dps; id++) {
             dp = dps[id];
-            double* spline_slopes = (double*) malloc(sizeof(double) * grid_length);
-            dp->spline_slopes = spline_slopes;
-            
             line = stFile_getLineFromFile(in);
-            tokens = stString_split(line);
-            for (int64_t i = 0; i < grid_length; i++) {
-                sscanf((char*) stList_get(tokens, i), "%lf", &(spline_slopes[i]));
+            stList* tokens = stString_split(line);
+            if (stList_length(tokens) != 0) {
+                spline_slopes = (double*) malloc(sizeof(double) * grid_length);
+                dp->spline_slopes = spline_slopes;
+                for (int64_t i = 0; i < grid_length; i++) {
+                    sscanf((char*) stList_get(tokens, i), "%lf", &(spline_slopes[i]));
+                }
             }
             free(line);
             stList_destruct(tokens);
+            
         }
     }
     
@@ -2282,3 +2431,4 @@ HierarchicalDirichletProcess* deserialize_hdp(const char* filepath) {
     
     return hdp;
 }
+
