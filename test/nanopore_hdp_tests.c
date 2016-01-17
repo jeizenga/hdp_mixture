@@ -84,7 +84,13 @@ void test_word_id_to_multiset_id(CuTest* ct) {
     CuAssertIntEquals(ct, word_id_to_multiset_id(6, alphabet_size, length), 5);
     CuAssertIntEquals(ct, word_id_to_multiset_id(7, alphabet_size, length), 6);
     CuAssertIntEquals(ct, word_id_to_multiset_id(8, alphabet_size, length), 2);
-    CuAssertIntEquals(ct, word_id_to_multiset_id(9, alphabet_size, length), 5);
+    CuAssertIntEquals(ct, word_id_to_multiset_id(10, alphabet_size, length), 7);
+    CuAssertIntEquals(ct, word_id_to_multiset_id(11, alphabet_size, length), 8);
+    CuAssertIntEquals(ct, word_id_to_multiset_id(12, alphabet_size, length), 3);
+    CuAssertIntEquals(ct, word_id_to_multiset_id(13, alphabet_size, length), 6);
+    CuAssertIntEquals(ct, word_id_to_multiset_id(14, alphabet_size, length), 8);
+    CuAssertIntEquals(ct, word_id_to_multiset_id(15, alphabet_size, length), 9);
+    CuAssertIntEquals(ct, word_id_to_multiset_id(16, alphabet_size, length), 1);
     
 }
 
