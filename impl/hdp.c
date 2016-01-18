@@ -1992,7 +1992,7 @@ void serialize_factor_tree_internal(FILE* out, Factor* fctr, int64_t parent_id, 
         fprintf(out, "-\t");
     }
     else {
-        fprintf(out, "%lld\t", parent_id);
+        fprintf(out, "%"PRId64"\t", parent_id);
     }
     // extra data based on type
     if (fctr->factor_type == BASE) {
@@ -2005,12 +2005,12 @@ void serialize_factor_tree_internal(FILE* out, Factor* fctr, int64_t parent_id, 
     }
     else if (fctr->factor_type == MIDDLE) {
         // dp id
-        fprintf(out, "%lld", fctr->dp->id);
+        fprintf(out, "%"PRId64, fctr->dp->id);
     }
     else {
         // data index
         uintptr_t data_pos = (uintptr_t) fctr->factor_data;
-        fprintf(out, "%lld", ((int64_t) (data_pos - data_start)) / sizeof(int64_t));
+        fprintf(out, "%"PRId64, ((int64_t) (data_pos - data_start)) / sizeof(int64_t));
     }
     fprintf(out, "\n");
     
@@ -2049,13 +2049,13 @@ void serialize_hdp(HierarchicalDirichletProcess* hdp, const char* filepath) {
         exit(EXIT_FAILURE);
     }
     // splines finalized
-    fprintf(out, "%lld\n", (int64_t) hdp->splines_finalized);
+    fprintf(out, "%"PRId64"\n", (int64_t) hdp->splines_finalized);
     // has data
-    fprintf(out, "%lld\n", (int64_t) has_data);
+    fprintf(out, "%"PRId64"\n", (int64_t) has_data);
     // sample gamma
-    fprintf(out, "%lld\n", (int64_t) hdp->sample_gamma);
+    fprintf(out, "%"PRId64"\n", (int64_t) hdp->sample_gamma);
     // num dps
-    fprintf(out, "%lld\n", num_dps);
+    fprintf(out, "%"PRId64"\n", num_dps);
     // data
     if (has_data) {
         for (int64_t i = 0; i < num_data - 1; i++) {
@@ -2064,14 +2064,14 @@ void serialize_hdp(HierarchicalDirichletProcess* hdp, const char* filepath) {
         fprintf(out, "%.17lg\n", data[num_data - 1]);
         // dp ids
         for (int64_t i = 0; i < num_data - 1; i++) {
-            fprintf(out, "%lld\t", dp_ids[i]);
+            fprintf(out, "%"PRId64"\t", dp_ids[i]);
         }
-        fprintf(out, "%lld\n", dp_ids[num_data - 1]);
+        fprintf(out, "%"PRId64"\n", dp_ids[num_data - 1]);
     }
     // base params
     fprintf(out, "%.17lg\t%.17lg\t%.17lg\t%.17lg\n", hdp->mu, hdp->nu, (hdp->two_alpha) / 2.0, hdp->beta);
     // sampling grid
-    fprintf(out, "%.17lg\t%.17lg\t%lld\n", grid[0], grid[grid_length - 1], grid_length);
+    fprintf(out, "%.17lg\t%.17lg\t%"PRId64"\n", grid[0], grid[grid_length - 1], grid_length);
     // gamma
     for (int64_t i = 0; i < depth - 1; i++) {
         fprintf(out, "%.17lg\t", gamma_params[i]);
@@ -2097,9 +2097,9 @@ void serialize_hdp(HierarchicalDirichletProcess* hdp, const char* filepath) {
         fprintf(out, "%.17lg\n", w_aux_vector[num_dps - 1]);
         // s
         for (int64_t i = 0; i < num_dps - 1; i++) {
-            fprintf(out, "%lld\t", (int64_t) s_aux_vector[i]);
+            fprintf(out, "%"PRId64"\t", (int64_t) s_aux_vector[i]);
         }
-        fprintf(out, "%lld\n", (int64_t) s_aux_vector[num_dps - 1]);
+        fprintf(out, "%"PRId64"\n", (int64_t) s_aux_vector[num_dps - 1]);
     }
     // dp parents
     DirichletProcess* dp;
@@ -2108,10 +2108,10 @@ void serialize_hdp(HierarchicalDirichletProcess* hdp, const char* filepath) {
         
         // parent
         if (dp == base_dp) {
-            fprintf(out, "-\t%lld\n", dp->num_factor_children);
+            fprintf(out, "-\t%"PRId64"\n", dp->num_factor_children);
         }
         else {
-            fprintf(out, "%lld\t%lld\n", dp->parent->id, dp->num_factor_children);
+            fprintf(out, "%"PRId64"\t%"PRId64"\n", dp->parent->id, dp->num_factor_children);
         }
     }
     // post preds
@@ -2202,7 +2202,7 @@ HierarchicalDirichletProcess* deserialize_hdp(const char* filepath) {
         tokens = stString_split(line);
         dp_ids = (int64_t*) malloc(sizeof(int64_t) * data_length);
         for (int64_t i = 0; i < data_length; i++) {
-            sscanf((char*) stList_get(tokens, i), "%lld", &(dp_ids[i]));
+            sscanf((char*) stList_get(tokens, i), "%"SCNd64, &(dp_ids[i]));
         }
         free(line);
         stList_destruct(tokens);
@@ -2216,7 +2216,7 @@ HierarchicalDirichletProcess* deserialize_hdp(const char* filepath) {
     line = stFile_getLineFromFile(in);
     double grid_start, grid_stop;
     int64_t grid_length;
-    sscanf(line, "%lg\t%lg\t%lld", &grid_start, &grid_stop, &grid_length);
+    sscanf(line, "%lg\t%lg\t%"SCNd64, &grid_start, &grid_stop, &grid_length);
     free(line);
     // gamma
     line = stFile_getLineFromFile(in);
@@ -2267,7 +2267,7 @@ HierarchicalDirichletProcess* deserialize_hdp(const char* filepath) {
         tokens = stString_split(line);
         s = (bool*) malloc(sizeof(bool) * num_dps);
         for (int64_t i = 0; i < num_dps; i++) {
-            sscanf((char*) stList_get(tokens, i), "%lld", &s_int);
+            sscanf((char*) stList_get(tokens, i), "%"SCNd64, &s_int);
             s[i] = (bool) s_int;
         }
     }
@@ -2304,12 +2304,12 @@ HierarchicalDirichletProcess* deserialize_hdp(const char* filepath) {
     for (int64_t id = 0; id < num_dps; id++) {
         line = stFile_getLineFromFile(in);
         if (line[0] != '-') {
-            sscanf(line, "%lld\t%lld", &parent_id, &num_factor_children);
+            sscanf(line, "%"SCNd64"\t%"SCNd64, &parent_id, &num_factor_children);
             set_dir_proc_parent(hdp, id, parent_id);
             (dps[id])->num_factor_children = num_factor_children;
         }
         else {
-            sscanf(line, "-\t%lld", &num_factor_children);
+            sscanf(line, "-\t%"SCNd64, &num_factor_children);
             (dps[id])->num_factor_children = num_factor_children;        }
         free(line);
     }
@@ -2387,7 +2387,7 @@ HierarchicalDirichletProcess* deserialize_hdp(const char* filepath) {
         while (line != NULL) {
             tokens = stString_split(line);
             type_str = (char*) stList_get(tokens, 0);
-            sscanf(type_str, "%lld", &type_int);
+            sscanf(type_str, "%"SCNd64, &type_int);
             if (type_int == 0) {
                 fctr = new_base_factor(hdp);
                 params_str = (char*) stList_get(tokens, 2);
@@ -2401,12 +2401,12 @@ HierarchicalDirichletProcess* deserialize_hdp(const char* filepath) {
             }
             else if (type_int == 1) {
                 dp_str = (char*) stList_get(tokens, 2);
-                sscanf(dp_str, "%lld", &dp_id);
+                sscanf(dp_str, "%"SCNd64, &dp_id);
                 fctr = new_middle_factor(dps[dp_id]);
             }
             else if (type_int == 2) {
                 idx_str = (char*) stList_get(tokens, 2);;
-                sscanf(idx_str, "%lld", &data_pt_idx);
+                sscanf(idx_str, "%"SCNd64, &data_pt_idx);
                 fctr = new_data_pt_factor(hdp, data_pt_idx);
             }
             else {
@@ -2418,7 +2418,7 @@ HierarchicalDirichletProcess* deserialize_hdp(const char* filepath) {
             // set parent if appicable
             parent_str = (char*) stList_get(tokens, 1);
             if (parent_str[0] != '-') {
-                sscanf(parent_str, "%lld", &parent_idx);
+                sscanf(parent_str, "%"SCNd64, &parent_idx);
                 parent_fctr = (Factor*) stList_get(fctr_list, parent_idx);
                 
                 fctr->parent = parent_fctr;
