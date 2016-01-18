@@ -72,7 +72,7 @@ clean:
 	then { \
 		echo "The following will be deleted:"; \
 		echo "------------------------------"; \
-		find $(BINDIR) $(LIBDIR) $(OBJDIR) -type f; \
+		find $(BINDIR) $(OBJDIR) -type f; \
 		echo "------------------------------"; \
 		read -p "Continue (y/n)? " -n 1 -r CONTINUE; \
 		echo; \
@@ -81,6 +81,6 @@ clean:
 	fi; \
 	\
 	if [[ $$CONTINUE =~ ^[Yy]$$ ]]; \
-	then find $(BINDIR) $(LIBDIR) $(OBJDIR) -type f -delete; \
+	then find $(BINDIR) $(OBJDIR) -type f -delete; \
 	else echo "Aborted"; \
 	fi;

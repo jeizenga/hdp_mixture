@@ -35,7 +35,7 @@ void load_data(const char* data_filepath, const char* dp_id_filepath,
     while (line != NULL) {
         dp_id_ptr = (int64_t*) malloc(sizeof(int64_t));
         
-        sscanf(line, "%lld", dp_id_ptr);
+        sscanf(line, "%"SCNd64, dp_id_ptr);
         
         stList_append(dp_id_list, dp_id_ptr);
         
@@ -79,9 +79,9 @@ void write_int_data(FILE* f, int64_t* data, int64_t length) {
     if (length <= 0) {
         return;
     }
-    fprintf(f, "%lld", data[0]);
+    fprintf(f, "%"PRId64, data[0]);
     for (int64_t i = 1; i < length; i++) {
-        fprintf(f, "\n%lld", data[i]);
+        fprintf(f, "\n%"PRId64, data[i]);
     }
 }
 
@@ -97,7 +97,7 @@ void output_distrs_to_disk(HierarchicalDirichletProcess* hdp, double* grid, int6
         for (int64_t j = 0; j < grid_length; j++) {
             pdf[j] = dir_proc_density(hdp, grid[j], i);
         }
-        sprintf(file_name, "dp_%lld_distr.txt", i);
+        sprintf(file_name, "dp_%"PRId64"_distr.txt", i);
         FILE* out = fopen(file_name, "w");
         write_double_data(out, pdf, grid_length);
         fclose(out);
@@ -147,9 +147,9 @@ void record_snapshots_to_files(HierarchicalDirichletProcess* hdp, void* snapshot
     fprintf(gamma_params_file, "%lf\n", gamma_params[num_gamma_params - 1]);
     
     for (int64_t i = 0; i < num_dps - 1; i++) {
-        fprintf(num_dp_factors_file, "%lld\t", num_dp_factors[i]);
+        fprintf(num_dp_factors_file, "%"PRId64"\t", num_dp_factors[i]);
     }
-    fprintf(num_dp_factors_file, "%lld\n", num_dp_factors[num_dps - 1]);
+    fprintf(num_dp_factors_file, "%"PRId64"\n", num_dp_factors[num_dps - 1]);
     
     fclose(num_dp_factors_file);
     fclose(gamma_params_file);

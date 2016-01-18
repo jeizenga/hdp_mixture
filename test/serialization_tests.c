@@ -161,7 +161,7 @@ void test_serialization(CuTest* ct) {
         dp_id_ptr = (int64_t*) malloc(sizeof(int64_t));
         
         sscanf(data_line, "%lf", datum_ptr);
-        sscanf(dp_id_line, "%lld", dp_id_ptr);
+        sscanf(dp_id_line, "%"SCNd64, dp_id_ptr);
         
         if (*dp_id_ptr != 4) {
             stList_append(data_list, datum_ptr);
