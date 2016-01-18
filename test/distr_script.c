@@ -43,7 +43,6 @@ void write_kmer_distr(NanoporeHDP* nhdp, char* kmer, double* eval_grid, int64_t 
     density = get_nanopore_kmer_density(nhdp, eval_grid[grid_length - 1], kmer);
     fprintf(out, "%.17lg", density);
     
-    free(filename);
     fclose(out);
 }
 
@@ -125,7 +124,7 @@ int main(int argc, char** argv) {
         update_nhdp_from_alignment(nhdp, alignment_filepath, false);
     }
     else {
-        update_nhdp_from_alignment_with_filter(nhdp, alignment_filepath, false, argv[3]);
+        update_nhdp_from_alignment_with_filter(nhdp, alignment_filepath, false, filter);
     }
     
     int64_t num_samples = 25000;
