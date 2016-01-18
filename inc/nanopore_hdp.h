@@ -30,6 +30,13 @@ void execute_nhdp_gibbs_sampling_with_snapshots(NanoporeHDP* nhdp, int64_t num_s
 double get_nanopore_kmer_density(NanoporeHDP* nhdp, double x, char* kmer);
 
 
+void update_nhdp_from_alignment(NanoporeHDP* nhdp, const char* alignment_filepath, bool has_header);
+
+// filter for only observations containing "strand_filter" in the strand column
+void update_nhdp_from_alignment_with_filter(NanoporeHDP* nhdp, const char* alignment_filepath,
+                                            bool has_header, const char* strand_filter);
+
+
 // single level HDP
 NanoporeHDP* flat_hdp_model(const char* alphabet, int64_t alphabet_size, int64_t kmer_length, double base_gamma,
                             double leaf_gamma, double sampling_grid_start, double sampling_grid_stop,
@@ -60,13 +67,6 @@ NanoporeHDP* middle_2_nts_hdp_model_2(const char* alphabet, int64_t alphabet_siz
                                       double middle_gamma_beta, double leaf_gamma_alpha, double leaf_gamma_beta,
                                       double sampling_grid_start, double sampling_grid_stop,
                                       int64_t sampling_grid_length, const char* model_filepath);
-
-
-void update_nhdp_from_alignment(NanoporeHDP* nhdp, const char* alignment_filepath, bool has_header);
-
-// filter for only observations containing "strand_filter" in the strand column
-void update_nhdp_from_alignment_with_filter(NanoporeHDP* nhdp, const char* alignment_filepath,
-                                            bool has_header, const char* strand_filter);
 
 
 // n^k

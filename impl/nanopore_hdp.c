@@ -58,6 +58,13 @@ NanoporeHDP* package_nanopore_hdp(HierarchicalDirichletProcess* hdp, const char*
         internal_alphabet[min_idx] = temp;
     }
     
+    for (int64_t i = 1; i < alphabet_size; i++) {
+        if (alphabet[i - 1] == alphabet[i]) {
+            fprintf(stderr, "Characters of alphabet must be distinct.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+    
     nhdp->hdp = hdp;
     nhdp->alphabet = internal_alphabet;
     nhdp->alphabet_size = alphabet_size;
@@ -84,10 +91,11 @@ int64_t get_nanopore_hdp_alphabet_size(NanoporeHDP* nhdp) {
 char* get_nanopore_hdp_alphabet(NanoporeHDP* nhdp) {
     char* alphabet = nhdp->alphabet;
     int64_t alphabet_size = nhdp->alphabet_size;
-    char* copy = (char*) malloc(sizeof(char) * alphabet_size);
+    char* copy = (char*) malloc(sizeof(char) * (alphabet_size + 1));
     for (int64_t i = 0; i < alphabet_size; i++) {
         copy[i] = alphabet[i];
     }
+    copy[alphabet_size] = '\0';
     return copy;
 }
 
@@ -167,6 +175,10 @@ void update_nhdp_from_alignment_with_filter(NanoporeHDP* nhdp, const char* align
     stList* dp_id_list = stList_construct3(0, &free);
     
     FILE* align_file = fopen(alignment_filepath, "r");
+    if (align_file == NULL) {
+        fprintf(stderr, "Alignment %s file does not exist.\n", alignment_filepath);
+        exit(EXIT_FAILURE);
+    }
     
     stList* tokens;
     int64_t line_length;

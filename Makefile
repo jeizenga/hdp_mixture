@@ -1,4 +1,4 @@
-GITHUBDIR:=/Users/Jordan/Documents/GitHub
+GITHUBDIR:=../
 ROOTDIR:=${GITHUBDIR}/hdp_mixture
 SONLIBROOTDIR:=${GITHUBDIR}/sonLib
 SONLIBDIR:=${SONLIBROOTDIR}/lib
