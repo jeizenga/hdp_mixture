@@ -14,7 +14,8 @@ INC:=-I${INCDIR} -I${SONLIBDIR} -I${EXTERNDIR}
 LINK:=-L${SONLIBDIR} -L${OBJDIR} -lm
 SHELL:=/bin/bash
 
-all: ${OBJDIR}/CuTest.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/rnglib.o ${OBJDIR}/ranlib.o ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/hdp.o ${OBJDIR}/nanopore_hdp.o ${BINDIR}/main ${BINDIR}/utils_tests ${BINDIR}/nanopore_hdp_tests ${BINDIR}/serialization_tests
+all: ${OBJDIR}/CuTest.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/rnglib.o ${OBJDIR}/ranlib.o ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/hdp.o ${OBJDIR}/nanopore_hdp.o ${BINDIR}/main ${BINDIR}/utils_tests ${BINDIR}/nanopore_hdp_tests ${BINDIR}/serialization_tests ${BINDIR}/distr_script
+
 
 
 
@@ -66,6 +67,12 @@ ${BINDIR}/serialization_tests: ${TESTDIR}/serialization_tests.c ${OBJDIR}/hdp_ma
 	${CC} ${CFLAGS} ${OBJDIR}/serialization_tests.o ${OBJDIR}/hdp.o ${OBJDIR}/hdp_math_utils.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/ranlib.o ${OBJDIR}/rnglib.o ${OBJDIR}/CuTest.o ${INC} ${LINK} -o ${BINDIR}/serialization_tests
 	chmod +x ${BINDIR}/serialization_tests
 	rm ${OBJDIR}/serialization_tests.o	
+
+${BINDIR}/distr_script: ${TESTDIR}/distr_script.c ${OBJDIR}/nanopore_hdp.o ${OBJDIR}/hdp_math_utils.o
+	${CC} ${CFLAGS} -c ${TESTDIR}/distr_script.c ${INC} -o ${OBJDIR}/distr_script.o
+	${CC} ${CFLAGS} ${OBJDIR}/distr_script.o ${OBJDIR}/nanopore_hdp.o ${OBJDIR}/hdp.o ${OBJDIR}/hdp_math_utils.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/ranlib.o ${OBJDIR}/rnglib.o ${INC} ${LINK} -o ${BINDIR}/distr_script
+	chmod +x ${BINDIR}/distr_script
+	rm ${OBJDIR}/distr_script.o	
 
 clean:
 	@if [ $$(find bin -type f | wc -l) -gt 0 ]; \
