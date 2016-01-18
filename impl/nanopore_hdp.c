@@ -8,7 +8,7 @@
 
 // in 0-based index
 #define ALIGNMENT_KMER_COL 9
-#define ALIGNMENT_STRAND_COL 5
+#define ALIGNMENT_STRAND_COL 4
 #define ALIGNMENT_SIGNAL_COL 13
 #define NUM_ALIGNMENT_COLS 14
 
