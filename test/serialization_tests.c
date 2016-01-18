@@ -234,7 +234,7 @@ void test_serialization(CuTest* ct) {
     add_hdp_copy_tests(ct, original_hdp, copy_hdp);
     destroy_hier_dir_proc(copy_hdp);
     
-    execute_gibbs_sampling(original_hdp, 10, 10, 10);
+    execute_gibbs_sampling(original_hdp, 10, 10, 10, false);
     finalize_distributions(original_hdp);
     serialize_hdp(original_hdp, filepath);
     copy_hdp = deserialize_hdp(filepath);

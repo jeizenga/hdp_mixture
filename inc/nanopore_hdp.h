@@ -21,11 +21,13 @@ int64_t get_nanopore_hdp_kmer_length(NanoporeHDP* nhdp);
 int64_t get_nanopore_hdp_alphabet_size(NanoporeHDP* nhdp);
 char* get_nanopore_hdp_alphabet(NanoporeHDP* nhdp);
 
-void execute_nhdp_gibbs_sampling(NanoporeHDP* nhdp, int64_t num_samples, int64_t burn_in, int64_t thinning);
+void execute_nhdp_gibbs_sampling(NanoporeHDP* nhdp, int64_t num_samples, int64_t burn_in, int64_t thinning, bool verbose);
 
 void execute_nhdp_gibbs_sampling_with_snapshots(NanoporeHDP* nhdp, int64_t num_samples, int64_t burn_in, int64_t thinning,
                                                 void (*snapshot_func)(HierarchicalDirichletProcess*, void*),
-                                                void* snapshot_func_args);
+                                                void* snapshot_func_args, bool verbose);
+
+void finalize_nhdp_distributions(NanoporeHDP* nhdp);
 
 double get_nanopore_kmer_density(NanoporeHDP* nhdp, double x, char* kmer);
 

@@ -98,9 +98,12 @@ int main(int argc, char** argv) {
     
     int err = mkdir(DISTR_DIR, S_IRWXU);
     if (err == -1) {
-        fprintf(stderr, "Distribution directory already exists. Remove or rename ./nanopore_distrs/ before continuing.\n");
+        fprintf(stderr, "Distribution directory already exists. Remove or rename %s before continuing.\n",
+                DISTR_DIR);
         exit(EXIT_FAILURE);
     }
+    
+    fprintf(stderr, "Initializing HDP...\n");
     
     char* filter = NULL;
     if (argc == 4) {
@@ -120,6 +123,8 @@ int main(int argc, char** argv) {
     NanoporeHDP* nhdp = flat_hdp_model(NUCLEOTIDES, alphabet_size, kmer_length, base_gamma, leaf_gamma,
                                        grid_start, grid_stop, grid_length, model_filepath);
     
+    fprintf(stderr, "Initializing data...\n");
+    
     if (argc == 3) {
         update_nhdp_from_alignment(nhdp, alignment_filepath, false);
     }
@@ -127,11 +132,25 @@ int main(int argc, char** argv) {
         update_nhdp_from_alignment_with_filter(nhdp, alignment_filepath, false, filter);
     }
     
-    int64_t num_samples = 25000;
-    int64_t burn_in = 1000000;
-    int64_t thinning = 200;
+    fprintf(stderr, "Executing Gibbs sampling...\n");
     
-    execute_nhdp_gibbs_sampling(nhdp, num_samples, burn_in, thinning);
+    int64_t num_samples = 5000;
+    int64_t burn_in = 4000000;
+    int64_t thinning = 6000000 / num_samples;
+    
+    execute_nhdp_gibbs_sampling(nhdp, num_samples, burn_in, thinning, true);
+    
+    finalize_nhdp_distributions(nhdp);
+    
+    fprintf(stderr, "Writing distributions to disk...\n");
+    
+    double* eval_grid = linspace(grid_start, grid_stop, grid_length);
+    
+    write_all_kmer_distrs(nhdp, eval_grid, grid_length);
+    
+    free(eval_grid);
+    
+    destroy_nanopore_hdp(nhdp);
     
     
     

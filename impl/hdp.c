@@ -756,6 +756,11 @@ HierarchicalDirichletProcess* new_hier_dir_proc(int64_t num_dps, int64_t depth, 
         }
     }
     
+    if (num_dps < 2) {
+        fprintf(stderr, "Hierarchical Dirichlet process formalism requires >= 2 Dirichlet Processes.\n");
+        exit(EXIT_FAILURE);
+    }
+    
     double* grid = linspace(sampling_grid_start, sampling_grid_stop, sampling_grid_length);
 
     HierarchicalDirichletProcess* hdp = (HierarchicalDirichletProcess*) malloc(sizeof(HierarchicalDirichletProcess));
@@ -1027,6 +1032,7 @@ void init_factors_internal(DirichletProcess* dp, Factor* parent_fctr, stList** d
 }
 
 void init_factors(HierarchicalDirichletProcess* hdp) {
+    //printf("Initializing factors in hdp\n");
     int64_t data_length = hdp->data_length;
     int64_t* data_pt_dp_id = hdp->data_pt_dp_id;
     DirichletProcess** dps = hdp->dps;
@@ -1080,22 +1086,27 @@ void init_factors(HierarchicalDirichletProcess* hdp) {
     stSetIterator* fctr_iter;
     for (int64_t i = 0; i < num_dps; i++) {
         dp = dps[i];
+        //printf("counting factors for dp with id %"PRId64"\n", dp->id);
         
         fctr_child_count = 0;
+        //printf("count = %"PRId64"\n", fctr_child_count);
 
         fctr_iter = stSet_getIterator(dp->factors);
         fctr = (Factor*) stSet_getNext(fctr_iter);
         while (fctr != NULL) {
             fctr_child_count += stSet_size(fctr->children);
+            //printf("count = %"PRId64"\n", fctr_child_count);
             fctr = (Factor*) stSet_getNext(fctr_iter);
         }
         stSet_destructIterator(fctr_iter);
 
         dp->num_factor_children = fctr_child_count;
+        //printf("final count assigned = %"PRId64"\n", dp->num_factor_children);
     }
 }
 
 void finalize_data(HierarchicalDirichletProcess* hdp) {
+    //printf("entered finalize data function\n");
     verify_valid_dp_assignments(hdp);
     mark_observed_dps(hdp);
     init_factors(hdp);
@@ -1129,12 +1140,15 @@ void pass_data_to_hdp(HierarchicalDirichletProcess* hdp, double* data, int64_t* 
         fprintf(stderr, "Hierarchical Dirichlet process must be reset before passing new data.\n");
         exit(EXIT_FAILURE);
     }
+    
+    //printf("passing data to hdp\n");
 
     hdp->data = data;
     hdp->data_pt_dp_id = dp_ids;
     hdp->data_length = length;
 
     if (hdp->finalized) {
+        //printf("finalizing data\n");
         finalize_data(hdp);
     }
 }
@@ -1404,6 +1418,7 @@ Factor* sample_factor(Factor* fctr, DirichletProcess* dp) {
 
 void gibbs_factor_iteration(Factor* fctr) {
     DirichletProcess* parent_dp = fctr->parent->dp;
+    //printf("beginning gibbs iter from factor with dp parent id %"PRId64"\n", parent_dp->id);
     unassign_from_parent(fctr);
     Factor* new_parent = sample_factor(fctr, parent_dp);
     assign_to_parent(fctr, new_parent);
@@ -1521,6 +1536,7 @@ DirichletProcess** get_shuffled_dps(HierarchicalDirichletProcess* hdp) {
 void sample_dp_factors(DirichletProcess* dp, int64_t* iter_counter, int64_t burn_in, int64_t thinning,
                        int64_t* sample_counter, int64_t num_samples) {
     
+    //printf("entering dp sampling functionf for id %"PRId64" with %"PRId64" children \n", dp->id, dp->num_factor_children);
     if (!dp->observed) {
         return;
     }
@@ -1552,6 +1568,7 @@ void sample_dp_factors(DirichletProcess* dp, int64_t* iter_counter, int64_t burn
     stSet_destructIterator(fctr_iter);
     
     for (int64_t j = 0; j < num_factor_children; j++) {
+        //printf("before entering factor iter from dp id %"PRId64"\n", dp->id);
         gibbs_factor_iteration(sampling_fctrs[j]);
         iter++;
         
@@ -1868,25 +1885,36 @@ void take_snapshot(HierarchicalDirichletProcess* hdp, int64_t** num_dp_fctrs_out
 }
 
 void execute_gibbs_sampling(HierarchicalDirichletProcess* hdp, int64_t num_samples, int64_t burn_in,
-                            int64_t thinning) {
+                            int64_t thinning, bool verbose) {
     
-    execute_gibbs_sampling_with_snapshots(hdp, num_samples, burn_in, thinning, NULL, NULL);
+    execute_gibbs_sampling_with_snapshots(hdp, num_samples, burn_in, thinning, NULL, NULL, verbose);
 }
 
 void execute_gibbs_sampling_with_snapshots(HierarchicalDirichletProcess* hdp, int64_t num_samples, int64_t burn_in, int64_t thinning,
                                            void (*snapshot_func)(HierarchicalDirichletProcess*, void*),
-                                           void* snapshot_func_args) {
+                                           void* snapshot_func_args, bool verbose) {
     if (hdp->data == NULL || hdp->data_pt_dp_id == NULL) {
         fprintf(stderr, "Cannot perform Gibbs sampling before passing data to HDP.\n");
         exit(EXIT_FAILURE);
     }
     
+    if (!hdp->finalized) {
+        fprintf(stderr, "Cannot perform Gibbs sampling before finalizing HDP structure.\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    int64_t sweep_counter = 1;
     int64_t iter_counter = 0;
     int64_t sample_counter = 0;
     int64_t num_dps = hdp->num_dps;
 
     DirichletProcess** sampling_dps;
     while (sample_counter < num_samples) {
+        
+        if (verbose) {
+            fprintf(stderr, "Beginning sweep %"PRId64". Performed %"PRId64" sampling iterations. Collected %"PRId64" of %"PRId64" distribution samples\n", sweep_counter, iter_counter, sample_counter, num_samples);
+            sweep_counter++;
+        }
         
         if (snapshot_func != NULL) {
             snapshot_func(hdp, snapshot_func_args);

@@ -256,8 +256,8 @@ int main(int argc, char* argv[]) {
     // note: you can also pass data before finalizing the structure
     // note: it is not necessary to observe every Dirichlet process in the data
     
-    int64_t num_samples = 15000;
-    int64_t burn_in = 100000;
+    int64_t num_samples = 1000;
+    int64_t burn_in = 20000;
     int64_t thinning = 100;
 
     // choose whether to Gibbs sample only the distributions or to also supply a
@@ -271,11 +271,11 @@ int main(int argc, char* argv[]) {
     
     fprintf(stderr, "Executing Gibbs sampling and recording snapshots...\n");
     execute_gibbs_sampling_with_snapshots(hdp, num_samples, burn_in, thinning,
-                                          &record_snapshots_to_files, (void*) &filepaths);
+                                          &record_snapshots_to_files, (void*) &filepaths, true);
     
 //    // sample without a snapshot function
 //    fprintf(stderr, "Executing Gibbs sampling without snapshots...\n");
-//    execute_gibbs_sampling(hdp, num_samples, burn_in, thinning);
+//    execute_gibbs_sampling(hdp, num_samples, burn_in, thinning, true);
 
     // calculate the mean a posteriori estimate of each distribution
     fprintf(stderr, "Computing mean a posteriori distributions...\n");
@@ -303,7 +303,7 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "Giving HDP new data...\n");
     pass_data_to_hdp(hdp, new_data, new_data_pt_dps, new_data_length);
     fprintf(stderr, "Executing Gibbs sampling without snapshots...\n");
-    execute_gibbs_sampling(hdp, num_samples, burn_in, thinning);
+    execute_gibbs_sampling(hdp, num_samples, burn_in, thinning, true);
     fprintf(stderr, "Computing mean a posteriori distributions...\n");
     finalize_distributions(hdp);
 

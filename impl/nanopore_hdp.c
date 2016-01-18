@@ -10,7 +10,7 @@
 #define ALIGNMENT_KMER_COL 9
 #define ALIGNMENT_STRAND_COL 4
 #define ALIGNMENT_SIGNAL_COL 13
-#define NUM_ALIGNMENT_COLS 14
+#define NUM_ALIGNMENT_COLS 15
 
 #define MODEL_ROW_HEADER_LENGTH 1
 #define MODEL_MEAN_ENTRY 0
@@ -102,17 +102,20 @@ char* get_nanopore_hdp_alphabet(NanoporeHDP* nhdp) {
 
 // wrappers
 void execute_nhdp_gibbs_sampling(NanoporeHDP* nhdp, int64_t num_samples, int64_t burn_in,
-                                 int64_t thinning) {
-    execute_gibbs_sampling(nhdp->hdp, num_samples, burn_in,thinning);
+                                 int64_t thinning, bool verbose) {
+    execute_gibbs_sampling(nhdp->hdp, num_samples, burn_in, thinning, verbose);
 }
 
 void execute_nhdp_gibbs_sampling_with_snapshots(NanoporeHDP* nhdp,
                                                 int64_t num_samples, int64_t burn_in, int64_t thinning,
                                                 void (*snapshot_func)(HierarchicalDirichletProcess*, void*),
-                                                void* snapshot_func_args) {
-    execute_gibbs_sampling_with_snapshots(nhdp->hdp, num_samples, burn_in, thinning, snapshot_func, snapshot_func_args);
+                                                void* snapshot_func_args, bool verbose) {
+    execute_gibbs_sampling_with_snapshots(nhdp->hdp, num_samples, burn_in, thinning, snapshot_func, snapshot_func_args,
+                                          verbose);
 }
-
+void finalize_nhdp_distributions(NanoporeHDP* nhdp) {
+    finalize_distributions(nhdp->hdp);
+}
 
 void normal_inverse_gamma_params_from_minION(const char* model_filepath, double* mu_out, double* nu_out,
                                              double* alpha_out, double* beta_out) {
@@ -188,6 +191,7 @@ void update_nhdp_from_alignment_with_filter(NanoporeHDP* nhdp, const char* align
     int64_t* dp_id_ptr;
     double* signal_ptr;
     bool warned = false;
+    int proceed = 0;
     
     char* line = stFile_getLineFromFile(align_file);
     if (has_header) {
@@ -199,14 +203,18 @@ void update_nhdp_from_alignment_with_filter(NanoporeHDP* nhdp, const char* align
         
         if (!warned) {
             if (line_length != NUM_ALIGNMENT_COLS) {
-                fprintf(stderr, "Input format has changed from design period, HDP may receive incorrect data.");
+                fprintf(stderr, "Input format has changed from design period, HDP may receive incorrect data.\n");
                 warned = true;
             }
         }
         
         strand = (char*) stList_get(tokens, ALIGNMENT_STRAND_COL);
         
-        if (strcmp(strand, strand_filter) == 0 || strand_filter == NULL) {
+        if (strand_filter != NULL) {
+            proceed = strcmp(strand, strand_filter);
+        }
+        
+        if (proceed == 0) {
             signal_str = (char*) stList_get(tokens, ALIGNMENT_SIGNAL_COL);
             kmer = (char*) stList_get(tokens, ALIGNMENT_KMER_COL);
             
@@ -394,6 +402,8 @@ NanoporeHDP* flat_hdp_model(const char* alphabet, int64_t alphabet_size, int64_t
     
     flat_hdp_model_internal(hdp, alphabet_size, kmer_length);
     
+    finalize_hdp_structure(hdp);
+    
     NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
     
     return nhdp;
@@ -419,6 +429,8 @@ NanoporeHDP* flat_hdp_model_2(const char* alphabet, int64_t alphabet_size, int64
                                                      model_filepath);
     
     flat_hdp_model_internal(hdp, alphabet_size, kmer_length);
+    
+    finalize_hdp_structure(hdp);
     
     NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
     
@@ -467,6 +479,9 @@ NanoporeHDP* multiset_hdp_model(const char* alphabet, int64_t alphabet_size, int
     
     multiset_hdp_model_internal(hdp, alphabet_size, kmer_length);
     
+    finalize_hdp_structure(hdp);
+
+    
     NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
     
     return nhdp;
@@ -496,6 +511,8 @@ NanoporeHDP* multiset_hdp_model_2(const char* alphabet, int64_t alphabet_size, i
                                                      model_filepath);
     
     multiset_hdp_model_internal(hdp, alphabet_size, kmer_length);
+    
+    finalize_hdp_structure(hdp);
     
     NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
     
@@ -555,6 +572,8 @@ NanoporeHDP* middle_2_nts_hdp_model(const char* alphabet, int64_t alphabet_size,
     
     middle_2_nts_hdp_model_internal(hdp, alphabet_size, kmer_length);
     
+    finalize_hdp_structure(hdp);
+    
     NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
     
     return nhdp;
@@ -586,6 +605,8 @@ NanoporeHDP* middle_2_nts_hdp_model_2(const char* alphabet, int64_t alphabet_siz
                                                      model_filepath);
     
     middle_2_nts_hdp_model_internal(hdp, alphabet_size, kmer_length);
+    
+    finalize_hdp_structure(hdp);
     
     NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
     

@@ -34,12 +34,12 @@ void reset_hdp_data(HierarchicalDirichletProcess* hdp);
 // Gibbs sampling
 
 void execute_gibbs_sampling(HierarchicalDirichletProcess* hdp, int64_t num_samples, int64_t burn_in,
-                            int64_t thinning);
+                            int64_t thinning, bool verbose);
 
 void execute_gibbs_sampling_with_snapshots(HierarchicalDirichletProcess* hdp,
                                            int64_t num_samples, int64_t burn_in, int64_t thinning,
                                            void (*snapshot_func)(HierarchicalDirichletProcess*, void*),
-                                           void* snapshot_func_args);
+                                           void* snapshot_func_args, bool verbose);
 
 void finalize_distributions(HierarchicalDirichletProcess* hdp);
 
