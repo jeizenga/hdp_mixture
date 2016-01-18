@@ -11,6 +11,10 @@
 #define N_IG_NUM_PARAMS 4
 #define MINUS_INF -0.5 * DBL_MAX
 
+#ifndef M_PI
+#define M_PI 3.14159265358979323846264338
+#endif
+
 typedef struct Factor Factor;
 typedef struct DirichletProcess DirichletProcess;
 typedef enum FactorType FactorType;
