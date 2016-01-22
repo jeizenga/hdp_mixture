@@ -74,8 +74,11 @@ NanoporeHDP* package_nanopore_hdp(HierarchicalDirichletProcess* hdp, const char*
 }
 
 void destroy_nanopore_hdp(NanoporeHDP* nhdp) {
+    printf("destroying hdp\n");
     destroy_hier_dir_proc(nhdp->hdp);
+    printf("freeing alphabet\n");
     free(nhdp->alphabet);
+    printf("freeing nhdp memory\n");
     free(nhdp);
 }
 

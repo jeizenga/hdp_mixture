@@ -135,10 +135,10 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Executing Gibbs sampling...\n");
     
     int64_t num_samples = 5000;
-    int64_t burn_in = 4000000;
-    int64_t thinning = 6000000 / num_samples;
+    int64_t burn_in = 400000;
+    int64_t thinning = 600000 / num_samples;
     
-    execute_nhdp_gibbs_sampling(nhdp, num_samples, burn_in, thinning, true);
+    //execute_nhdp_gibbs_sampling(nhdp, num_samples, burn_in, thinning, true);
     
     finalize_nhdp_distributions(nhdp);
     

@@ -1032,7 +1032,6 @@ void init_factors_internal(DirichletProcess* dp, Factor* parent_fctr, stList** d
 }
 
 void init_factors(HierarchicalDirichletProcess* hdp) {
-    //printf("Initializing factors in hdp\n");
     int64_t data_length = hdp->data_length;
     int64_t* data_pt_dp_id = hdp->data_pt_dp_id;
     DirichletProcess** dps = hdp->dps;
@@ -1086,27 +1085,22 @@ void init_factors(HierarchicalDirichletProcess* hdp) {
     stSetIterator* fctr_iter;
     for (int64_t i = 0; i < num_dps; i++) {
         dp = dps[i];
-        //printf("counting factors for dp with id %"PRId64"\n", dp->id);
         
         fctr_child_count = 0;
-        //printf("count = %"PRId64"\n", fctr_child_count);
 
         fctr_iter = stSet_getIterator(dp->factors);
         fctr = (Factor*) stSet_getNext(fctr_iter);
         while (fctr != NULL) {
             fctr_child_count += stSet_size(fctr->children);
-            //printf("count = %"PRId64"\n", fctr_child_count);
             fctr = (Factor*) stSet_getNext(fctr_iter);
         }
         stSet_destructIterator(fctr_iter);
 
         dp->num_factor_children = fctr_child_count;
-        //printf("final count assigned = %"PRId64"\n", dp->num_factor_children);
     }
 }
 
 void finalize_data(HierarchicalDirichletProcess* hdp) {
-    //printf("entered finalize data function\n");
     verify_valid_dp_assignments(hdp);
     mark_observed_dps(hdp);
     init_factors(hdp);
@@ -1141,14 +1135,12 @@ void pass_data_to_hdp(HierarchicalDirichletProcess* hdp, double* data, int64_t* 
         exit(EXIT_FAILURE);
     }
     
-    //printf("passing data to hdp\n");
 
     hdp->data = data;
     hdp->data_pt_dp_id = dp_ids;
     hdp->data_length = length;
 
     if (hdp->finalized) {
-        //printf("finalizing data\n");
         finalize_data(hdp);
     }
 }
@@ -1253,7 +1245,7 @@ void unassign_from_parent(Factor* fctr) {
     }
 }
 
-void assign_to_parent(Factor* fctr, Factor* parent) {
+void assign_to_parent(Factor* fctr, Factor* parent, bool update_params) {
     if (fctr->factor_type == BASE) {
         fprintf(stderr, "Cannot assign base factor to a parent.\n");
         exit(EXIT_FAILURE);
@@ -1269,7 +1261,7 @@ void assign_to_parent(Factor* fctr, Factor* parent) {
     (parent->dp->num_factor_children)++;
 
     Factor* base_fctr = get_base_factor(parent);
-    if (base_fctr == NULL) {
+    if (!update_params) {
         return;
     }
 
@@ -1316,10 +1308,10 @@ Factor* sample_from_data_pt_factor(Factor* fctr, DirichletProcess* dp) {
     cdf[num_fctrs] = cumul;
     
     int64_t choice_idx = bisect_left(rand_uniform(cumul), cdf, num_fctrs + 1);
-    free(cdf);
     
     Factor* fctr_choice;
     if (choice_idx == num_fctrs) {
+        free(fctr_order);
         DirichletProcess* parent_dp = dp->parent;
         if (parent_dp == NULL) {
             fctr_choice = new_base_factor(dp->hdp);
@@ -1327,14 +1319,13 @@ Factor* sample_from_data_pt_factor(Factor* fctr, DirichletProcess* dp) {
         else {
             fctr_choice = new_middle_factor(dp);
             Factor* new_fctr_parent = sample_from_data_pt_factor(fctr, parent_dp);
-            assign_to_parent(fctr_choice, new_fctr_parent);
+            assign_to_parent(fctr_choice, new_fctr_parent, false);
         }
     }
     else {
         fctr_choice = fctr_order[choice_idx];
+        free(fctr_order);
     }
-
-    free(fctr_order);
 
     return fctr_choice;
 }
@@ -1385,6 +1376,7 @@ Factor* sample_from_middle_factor(Factor* fctr, DirichletProcess* dp) {
 
     Factor* fctr_choice;
     if (choice_idx == num_fctrs) {
+        free(fctr_order);
         DirichletProcess* parent_dp = dp->parent;
         if (parent_dp == NULL) {
             fctr_choice = new_base_factor(dp->hdp);
@@ -1392,13 +1384,13 @@ Factor* sample_from_middle_factor(Factor* fctr, DirichletProcess* dp) {
         else {
             fctr_choice = new_middle_factor(dp);
             Factor* new_fctr_parent = sample_from_middle_factor(fctr, parent_dp);
-            assign_to_parent(fctr_choice, new_fctr_parent);
+            assign_to_parent(fctr_choice, new_fctr_parent, false);
         }
     }
     else {
         fctr_choice = fctr_order[choice_idx];
+        free(fctr_order);
     }
-    free(fctr_order);
 
     return fctr_choice;
 }
@@ -1418,10 +1410,9 @@ Factor* sample_factor(Factor* fctr, DirichletProcess* dp) {
 
 void gibbs_factor_iteration(Factor* fctr) {
     DirichletProcess* parent_dp = fctr->parent->dp;
-    //printf("beginning gibbs iter from factor with dp parent id %"PRId64"\n", parent_dp->id);
     unassign_from_parent(fctr);
     Factor* new_parent = sample_factor(fctr, parent_dp);
-    assign_to_parent(fctr, new_parent);
+    assign_to_parent(fctr, new_parent, true);
 }
 
 void cache_prior_contribution(DirichletProcess* dp, double parent_prior_prod) {
@@ -1536,7 +1527,6 @@ DirichletProcess** get_shuffled_dps(HierarchicalDirichletProcess* hdp) {
 void sample_dp_factors(DirichletProcess* dp, int64_t* iter_counter, int64_t burn_in, int64_t thinning,
                        int64_t* sample_counter, int64_t num_samples) {
     
-    //printf("entering dp sampling functionf for id %"PRId64" with %"PRId64" children \n", dp->id, dp->num_factor_children);
     if (!dp->observed) {
         return;
     }
@@ -1568,7 +1558,6 @@ void sample_dp_factors(DirichletProcess* dp, int64_t* iter_counter, int64_t burn
     stSet_destructIterator(fctr_iter);
     
     for (int64_t j = 0; j < num_factor_children; j++) {
-        //printf("before entering factor iter from dp id %"PRId64"\n", dp->id);
         gibbs_factor_iteration(sampling_fctrs[j]);
         iter++;
         
@@ -1903,6 +1892,7 @@ void execute_gibbs_sampling_with_snapshots(HierarchicalDirichletProcess* hdp, in
         exit(EXIT_FAILURE);
     }
     
+    int64_t prev_sweep_iter_count = 0;
     int64_t sweep_counter = 1;
     int64_t iter_counter = 0;
     int64_t sample_counter = 0;
@@ -1912,7 +1902,15 @@ void execute_gibbs_sampling_with_snapshots(HierarchicalDirichletProcess* hdp, in
     while (sample_counter < num_samples) {
         
         if (verbose) {
-            fprintf(stderr, "Beginning sweep %"PRId64". Performed %"PRId64" sampling iterations. Collected %"PRId64" of %"PRId64" distribution samples\n", sweep_counter, iter_counter, sample_counter, num_samples);
+            int64_t non_data_pt_samples;
+            if (sweep_counter > 1) {
+                non_data_pt_samples = iter_counter - prev_sweep_iter_count - hdp->data_length;
+            }
+            else {
+                non_data_pt_samples = 0;
+            }
+//            fprintf(stderr, "Beginning sweep %"PRId64". Performed %"PRId64" sampling iterations. Previous sweep sampled from ~%"PRId64" non-data point factors. Collected %"PRId64" of %"PRId64" distribution samples.\n", sweep_counter, iter_counter, non_data_pt_samples, sample_counter, num_samples);
+            prev_sweep_iter_count = iter_counter;
             sweep_counter++;
         }
         
