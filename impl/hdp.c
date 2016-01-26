@@ -2051,8 +2051,7 @@ void serialize_factor_tree_internal(FILE* out, Factor* fctr, int64_t parent_id, 
     }
 }
 
-void serialize_hdp(HierarchicalDirichletProcess* hdp, const char* filepath) {
-    FILE* out = fopen(filepath, "w");
+void serialize_hdp(HierarchicalDirichletProcess* hdp, FILE* out) {
     
     int64_t num_dps = hdp->num_dps;
     int64_t num_data = hdp->data_length;
@@ -2183,13 +2182,9 @@ void serialize_hdp(HierarchicalDirichletProcess* hdp, const char* filepath) {
         }
         stSet_destructIterator(iter);
     }
-    
-    fclose(out);
 }
 
-HierarchicalDirichletProcess* deserialize_hdp(const char* filepath) {
-    FILE* in = fopen(filepath, "r");
-    
+HierarchicalDirichletProcess* deserialize_hdp(FILE* in) {
     // splines finalized
     char* end;
     char* line = stFile_getLineFromFile(in);
@@ -2255,14 +2250,14 @@ HierarchicalDirichletProcess* deserialize_hdp(const char* filepath) {
     free(line);
     stList_destruct(tokens);
     // gamma distr params
-    line = stFile_getLineFromFile(in);
-    tokens = stString_split(line);
     double* gamma_alpha;
     double* gamma_beta;
     double* w;
     bool* s;
     int64_t s_int;
     if (sample_gamma) {
+        line = stFile_getLineFromFile(in);
+        tokens = stString_split(line);
         // gamma alpha
         gamma_alpha = (double*) malloc(sizeof(double) * depth);
         for (int64_t i = 0; i < depth; i++) {
@@ -2296,10 +2291,9 @@ HierarchicalDirichletProcess* deserialize_hdp(const char* filepath) {
             sscanf((char*) stList_get(tokens, i), "%"SCNd64, &s_int);
             s[i] = (bool) s_int;
         }
+        free(line);
+        stList_destruct(tokens);
     }
-    free(line);
-    stList_destruct(tokens);
-    
     // construct hdp
     HierarchicalDirichletProcess* hdp;
     if (sample_gamma) {
@@ -2456,8 +2450,6 @@ HierarchicalDirichletProcess* deserialize_hdp(const char* filepath) {
         }
         stList_destruct(fctr_list);
     }
-    
-    fclose(in);
     
     return hdp;
 }

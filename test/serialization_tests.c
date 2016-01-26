@@ -11,6 +11,8 @@
 #include "CuTest.h"
 #include "hdp.h"
 #include "hdp_math_utils.h"
+#include "nanopore_hdp.h"
+#include "sonLib.h"
 
 void add_hdp_copy_tests(CuTest* ct, HierarchicalDirichletProcess* original_hdp,
                         HierarchicalDirichletProcess* copy_hdp) {
@@ -221,38 +223,148 @@ void test_serialization(CuTest* ct) {
     char* filepath = "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test.hdp";
     char* copy_filepath = "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_copy.hdp";
     
-    serialize_hdp(original_hdp, filepath);
-    HierarchicalDirichletProcess* copy_hdp = deserialize_hdp(filepath);
-    serialize_hdp(copy_hdp, copy_filepath);
+    FILE* main_file;
+    FILE* copy_file;
+    
+    main_file = fopen(filepath, "w");
+    serialize_hdp(original_hdp, main_file);
+    fclose(main_file);
+    main_file = fopen(filepath, "r");
+    HierarchicalDirichletProcess* copy_hdp = deserialize_hdp(main_file);
+    fclose(main_file);
+    copy_file = fopen(copy_filepath, "w");
+    serialize_hdp(copy_hdp, copy_file);
+    fclose(copy_file);
     add_hdp_copy_tests(ct, original_hdp, copy_hdp);
     destroy_hier_dir_proc(copy_hdp);
+    remove(copy_filepath);
     
     pass_data_to_hdp(original_hdp, data, dp_ids, data_length);
-    serialize_hdp(original_hdp, filepath);
-    copy_hdp = deserialize_hdp(filepath);
-    serialize_hdp(copy_hdp, copy_filepath);
+    main_file = fopen(filepath, "w");
+    serialize_hdp(original_hdp, main_file);
+    fclose(main_file);
+    main_file = fopen(filepath, "r");
+    copy_hdp = deserialize_hdp(main_file);
+    fclose(main_file);
+    copy_file = fopen(copy_filepath, "w");
+    serialize_hdp(copy_hdp, copy_file);
+    fclose(copy_file);
     add_hdp_copy_tests(ct, original_hdp, copy_hdp);
     destroy_hier_dir_proc(copy_hdp);
+    remove(copy_filepath);
     
     execute_gibbs_sampling(original_hdp, 10, 10, 10, false);
     finalize_distributions(original_hdp);
-    serialize_hdp(original_hdp, filepath);
-    copy_hdp = deserialize_hdp(filepath);
-    serialize_hdp(copy_hdp, copy_filepath);
+    main_file = fopen(filepath, "w");
+    serialize_hdp(original_hdp, main_file);
+    fclose(main_file);
+    main_file = fopen(filepath, "r");
+    copy_hdp = deserialize_hdp(main_file);
+    fclose(main_file);
+    copy_file = fopen(copy_filepath, "w");
+    serialize_hdp(copy_hdp, copy_file);
+    fclose(copy_file);
     add_hdp_copy_tests(ct, original_hdp, copy_hdp);
+    destroy_hier_dir_proc(copy_hdp);
+    remove(copy_filepath);
     
     destroy_hier_dir_proc(original_hdp);
-    destroy_hier_dir_proc(copy_hdp);
+    
     remove(filepath);
-    remove(copy_filepath);
 }
 
+void test_nhdp_serialization(CuTest* ct) {
+    
+    FILE* data_file = fopen("/Users/Jordan/Documents/GitHub/hdp_mixture/test/data.txt","r");
+    FILE* dp_id_file = fopen("/Users/Jordan/Documents/GitHub/hdp_mixture/test/dps.txt", "r");
+    
+    stList* data_list = stList_construct3(0, free);
+    stList* dp_id_list = stList_construct3(0, free);
+    
+    char* data_line = stFile_getLineFromFile(data_file);
+    char* dp_id_line = stFile_getLineFromFile(dp_id_file);
+    
+    double* datum_ptr;
+    int64_t* dp_id_ptr;
+    while (data_line != NULL) {
+        
+        datum_ptr = (double*) malloc(sizeof(double));
+        dp_id_ptr = (int64_t*) malloc(sizeof(int64_t));
+        
+        sscanf(data_line, "%lf", datum_ptr);
+        sscanf(dp_id_line, "%"SCNd64, dp_id_ptr);
+        
+        if (*dp_id_ptr != 4) {
+            stList_append(data_list, datum_ptr);
+            stList_append(dp_id_list, dp_id_ptr);
+        }
+        
+        free(data_line);
+        data_line = stFile_getLineFromFile(data_file);
+        
+        free(dp_id_line);
+        dp_id_line = stFile_getLineFromFile(dp_id_file);
+    }
+    
+    int64_t data_length;
+    int64_t dp_ids_length;
+    
+    double* data = stList_toDoublePtr(data_list, &data_length);
+    int64_t* dp_ids = stList_toIntPtr(dp_id_list, &dp_ids_length);
+    
+    stList_destruct(dp_id_list);
+    stList_destruct(data_list);
+    
+    fclose(data_file);
+    fclose(dp_id_file);
+    
+    NanoporeHDP* nhdp = flat_hdp_model("ACGT", 4, 6, 4.0, 20.0, 0.0, 100.0, 100,
+                                       "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_model.model");
+    
+    update_nhdp_from_alignment(nhdp, "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_alignment.tsv",
+                               false);
+    
+    execute_nhdp_gibbs_sampling(nhdp, 10, 0, 1, false);
+    finalize_nhdp_distributions(nhdp);
+    
+    serialize_nhdp(nhdp, "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test.nhdp");
+    NanoporeHDP* copy_nhdp = deserialize_nhdp("/Users/Jordan/Documents/GitHub/hdp_mixture/test/test.nhdp");
+    
+    
+    CuAssertDblEquals_Msg(ct, "nhdp dp density fail",
+                          get_nanopore_kmer_density(nhdp, 65.0, "AAAAAA"),
+                          get_nanopore_kmer_density(copy_nhdp, 65.0, "AAAAAA"),
+                          0.000001);
+    
+    CuAssertDblEquals_Msg(ct, "nhdp dp density fail",
+                          get_nanopore_kmer_density(nhdp, 65.0, "GCACCA"),
+                          get_nanopore_kmer_density(copy_nhdp, 65.0, "GCACCA"),
+                          0.000001);
+    
+    CuAssertDblEquals_Msg(ct, "nhdp dp density fail",
+                          get_nanopore_kmer_density(nhdp, 65.0, "CCTTAG"),
+                          get_nanopore_kmer_density(copy_nhdp, 65.0, "CCTTAG"),
+                          0.000001);
+    
+    CuAssertDblEquals_Msg(ct, "nhdp dp density fail",
+                          get_nanopore_kmer_density(nhdp, 65.0, "ACTTCA"),
+                          get_nanopore_kmer_density(copy_nhdp, 65.0, "ACTTCA"),
+                          0.000001);
+    
+    CuAssertDblEquals_Msg(ct, "nhdp dp density fail",
+                          get_nanopore_kmer_density(nhdp, 65.0, "GGAATC"),
+                          get_nanopore_kmer_density(copy_nhdp, 65.0, "GGAATC"),
+                          0.000001);
+    
+    remove("/Users/Jordan/Documents/GitHub/hdp_mixture/test/test.nhdp");
+}
 
 CuSuite* get_suite() {
     
     CuSuite* suite = CuSuiteNew();
     
     SUITE_ADD_TEST(suite, test_serialization);
+    SUITE_ADD_TEST(suite, test_nhdp_serialization);
 
     return suite;
 }
@@ -267,5 +379,5 @@ int main(void) {
     CuSuiteDetails(suite, output);
     printf("%s\n", output->buffer);
     
-    return 1;
+    return 0;
 }

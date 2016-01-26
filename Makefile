@@ -62,9 +62,9 @@ ${BINDIR}/nanopore_hdp_tests: ${TESTDIR}/nanopore_hdp_tests.c ${OBJDIR}/hdp_math
 	chmod +x ${BINDIR}/nanopore_hdp_tests
 	rm ${OBJDIR}/nanopore_hdp_tests.o
 
-${BINDIR}/serialization_tests: ${TESTDIR}/serialization_tests.c ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/hdp.o ${OBJDIR}/CuTest.o
+${BINDIR}/serialization_tests: ${TESTDIR}/serialization_tests.c ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/hdp.o ${OBJDIR}/CuTest.o ${OBJDIR}/nanopore_hdp.o
 	${CC} ${CFLAGS} -c ${TESTDIR}/serialization_tests.c ${INC} -o ${OBJDIR}/serialization_tests.o
-	${CC} ${CFLAGS} ${OBJDIR}/serialization_tests.o ${OBJDIR}/hdp.o ${OBJDIR}/hdp_math_utils.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/ranlib.o ${OBJDIR}/rnglib.o ${OBJDIR}/CuTest.o ${INC} ${LINK} -o ${BINDIR}/serialization_tests
+	${CC} ${CFLAGS} ${OBJDIR}/serialization_tests.o ${OBJDIR}/hdp.o ${OBJDIR}/hdp_math_utils.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/ranlib.o ${OBJDIR}/rnglib.o ${OBJDIR}/nanopore_hdp.o ${OBJDIR}/CuTest.o ${INC} ${LINK} -o ${BINDIR}/serialization_tests
 	chmod +x ${BINDIR}/serialization_tests
 	rm ${OBJDIR}/serialization_tests.o	
 

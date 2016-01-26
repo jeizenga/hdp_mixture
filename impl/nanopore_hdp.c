@@ -39,7 +39,7 @@ NanoporeHDP* package_nanopore_hdp(HierarchicalDirichletProcess* hdp, const char*
     NanoporeHDP* nhdp = (NanoporeHDP*) malloc(sizeof(NanoporeHDP));
     
     // copy and sort alphabet
-    char* internal_alphabet = (char*) malloc(sizeof(char) * alphabet_size);
+    char* internal_alphabet = (char*) malloc(sizeof(char) * (alphabet_size + 1));
     for (int64_t i = 0; i < alphabet_size; i++) {
         internal_alphabet[i] = alphabet[i];
     }
@@ -65,6 +65,8 @@ NanoporeHDP* package_nanopore_hdp(HierarchicalDirichletProcess* hdp, const char*
         }
     }
     
+    internal_alphabet[alphabet_size] = '\0';
+    
     nhdp->hdp = hdp;
     nhdp->alphabet = internal_alphabet;
     nhdp->alphabet_size = alphabet_size;
@@ -74,11 +76,8 @@ NanoporeHDP* package_nanopore_hdp(HierarchicalDirichletProcess* hdp, const char*
 }
 
 void destroy_nanopore_hdp(NanoporeHDP* nhdp) {
-    printf("destroying hdp\n");
     destroy_hier_dir_proc(nhdp->hdp);
-    printf("freeing alphabet\n");
     free(nhdp->alphabet);
-    printf("freeing nhdp memory\n");
     free(nhdp);
 }
 
@@ -615,4 +614,189 @@ NanoporeHDP* middle_2_nts_hdp_model_2(const char* alphabet, int64_t alphabet_siz
     
     return nhdp;
 }
+
+int64_t purine_composition_hdp_num_dps(int64_t num_purines, int64_t num_pyrimidines, int64_t kmer_length) {
+    int64_t num_leaves = power(num_purines + num_pyrimidines, kmer_length);
+    int64_t num_middle_dps = kmer_length + 1;
+    return num_leaves + num_middle_dps + 1;
+}
+
+void purine_composition_hdp_model_internal(HierarchicalDirichletProcess* hdp, bool* purine_alphabet,
+                                           int64_t alphabet_size, int64_t kmer_length) {
+    int64_t num_leaves = power(alphabet_size, kmer_length);
+    int64_t num_middle_dps = kmer_length + 1;
+    
+    // set kmer parents to purine multisets
+    int64_t num_purines;
+    int64_t* word;
+    for (int64_t kmer_id = 0; kmer_id < num_leaves; kmer_id++) {
+        word = get_word(kmer_id, alphabet_size, kmer_length);
+        num_purines = 0;
+        for (int64_t i = 0; i < kmer_length; i++) {
+            if (purine_alphabet[word[i]]) {
+                num_purines++;
+            }
+        }
+        free(word);
+        set_dir_proc_parent(hdp, kmer_id, num_leaves + num_purines);
+    }
+    
+    // set purine set parents to base dp
+    int64_t last_dp_id = num_leaves + num_middle_dps;
+    for (int64_t middle_dp_id = num_leaves; middle_dp_id < last_dp_id; middle_dp_id++) {
+        set_dir_proc_parent(hdp, middle_dp_id, last_dp_id);
+    }
+}
+
+NanoporeHDP* purine_composition_hdp_model(char* purine_alphabet, int64_t num_purines,
+                                          char* pyrimidine_alphabet, int64_t num_pyrimidines,
+                                          int64_t kmer_length, double base_gamma, double middle_gamma,
+                                          double leaf_gamma, double sampling_grid_start, double sampling_grid_stop,
+                                          int64_t sampling_grid_length, const char* model_filepath) {
+    
+    double* gamma_params = (double*) malloc(sizeof(double) * 3);
+    gamma_params[0] = base_gamma;
+    gamma_params[1] = middle_gamma;
+    gamma_params[2] = leaf_gamma;
+    
+    int64_t num_dps = purine_composition_hdp_num_dps(num_purines, num_pyrimidines, kmer_length);
+    
+    HierarchicalDirichletProcess* hdp = minION_hdp(num_dps, 3, gamma_params, sampling_grid_start,
+                                                   sampling_grid_stop, sampling_grid_length,
+                                                   model_filepath);
+    
+    int64_t alphabet_size = num_purines + num_pyrimidines;
+    char* alphabet = (char*) malloc(sizeof(char) * alphabet_size);
+    for (int64_t i = 0; i < num_purines; i++) {
+        alphabet[i] = purine_alphabet[i];
+    }
+    for (int64_t i = 0; i < num_pyrimidines; i++) {
+        alphabet[i + num_purines] = pyrimidine_alphabet[i];
+    }
+    
+    NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
+    
+    // get back the alphabet in the internal ordering
+    free(alphabet);
+    alphabet = get_nanopore_hdp_alphabet(nhdp);
+    bool* purines = (bool*) malloc(sizeof(bool) * alphabet_size);
+    for (int64_t i = 0; i < num_purines; i++) {
+        purine_alphabet[i] = false;
+        for (int64_t j = 0; j < num_purines; j++) {
+            if (alphabet[i] == purine_alphabet[j]) {
+                purines[i] = true;
+                break;
+            }
+        }
+    }
+    free(alphabet);
+    
+    purine_composition_hdp_model_internal(hdp, purines, alphabet_size, kmer_length);
+    free(purines);
+    
+    finalize_hdp_structure(hdp);
+    
+    return nhdp;
+}
+
+NanoporeHDP* purine_composition_hdp_model_2(char* purine_alphabet, int64_t num_purines,
+                                            char* pyrimidine_alphabet, int64_t num_pyrimidines,
+                                            int64_t kmer_length, double base_gamma_alpha, double base_gamma_beta,
+                                            double middle_gamma_alpha, double middle_gamma_beta,
+                                            double leaf_gamma_alpha, double leaf_gamma_beta, double sampling_grid_start,
+                                            double sampling_grid_stop, int64_t sampling_grid_length,
+                                            const char* model_filepath) {
+    
+    double* gamma_alpha = (double*) malloc(sizeof(double) * 3);
+    gamma_alpha[0] = base_gamma_alpha;
+    gamma_alpha[1] = middle_gamma_alpha;
+    gamma_alpha[2] = leaf_gamma_alpha;
+    
+    
+    double* gamma_beta = (double*) malloc(sizeof(double) * 3);
+    gamma_beta[0] = base_gamma_beta;
+    gamma_beta[1] = middle_gamma_beta;
+    gamma_beta[2] = leaf_gamma_beta;
+    
+    int64_t num_dps = purine_composition_hdp_num_dps(num_purines, num_pyrimidines, kmer_length);
+    
+    HierarchicalDirichletProcess* hdp = minION_hdp_2(num_dps, 3, gamma_alpha, gamma_beta, sampling_grid_start,
+                                                     sampling_grid_stop, sampling_grid_length,
+                                                     model_filepath);
+    
+    int64_t alphabet_size = num_purines + num_pyrimidines;
+    char* alphabet = (char*) malloc(sizeof(char) * alphabet_size);
+    for (int64_t i = 0; i < num_purines; i++) {
+        alphabet[i] = purine_alphabet[i];
+    }
+    for (int64_t i = 0; i < num_pyrimidines; i++) {
+        alphabet[i + num_purines] = pyrimidine_alphabet[i];
+    }
+    
+    NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
+    
+    // get back the alphabet in the internal ordering
+    free(alphabet);
+    alphabet = get_nanopore_hdp_alphabet(nhdp);
+    bool* purines = (bool*) malloc(sizeof(bool) * alphabet_size);
+    for (int64_t i = 0; i < alphabet_size; i++) {
+        purines[i] = false;
+        for (int64_t j = 0; j < num_purines; j++) {
+            if (alphabet[i] == purine_alphabet[j]) {
+                purines[i] = true;
+                break;
+            }
+        }
+    }
+    
+    free(alphabet);
+    
+    purine_composition_hdp_model_internal(hdp, purines, alphabet_size, kmer_length);
+    free(purines);
+    
+    finalize_hdp_structure(hdp);
+    
+    return nhdp;
+}
+
+void serialize_nhdp(NanoporeHDP* nhdp, const char* filepath) {
+    FILE* out = fopen(filepath, "w");
+    
+    fprintf(out, "%"PRId64"\n", nhdp->alphabet_size);
+    fprintf(out, "%s\n", nhdp->alphabet);
+    fprintf(out, "%"PRId64"\n", nhdp->kmer_length);
+    serialize_hdp(nhdp->hdp, out);
+    
+    fclose(out);
+}
+
+NanoporeHDP* deserialize_nhdp(const char* filepath) {
+    FILE* in = fopen(filepath, "r");
+    
+    char* line = stFile_getLineFromFile(in);
+    int64_t alphabet_size;
+    sscanf(line, "%"SCNd64, &alphabet_size);
+    free(line);
+    
+    line = stFile_getLineFromFile(in);
+    char* alphabet = (char*) malloc(sizeof(char) * alphabet_size);
+    sscanf(line, "%s", alphabet);
+    free(line);
+    
+    line = stFile_getLineFromFile(in);
+    int64_t kmer_length;
+    sscanf(line, "%"SCNd64, &kmer_length);
+    free(line);
+    
+    HierarchicalDirichletProcess* hdp = deserialize_hdp(in);
+    
+    fclose(in);
+    
+    NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
+                                    
+    free(alphabet);
+    
+    return nhdp;
+}
+
 

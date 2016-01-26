@@ -48,6 +48,20 @@ NanoporeHDP* flat_hdp_model_2(const char* alphabet, int64_t alphabet_size, int64
                               double leaf_gamma_beta, double sampling_grid_start, double sampling_grid_stop,
                               int64_t sampling_grid_length, const char* model_filepath);
 
+// second level of HDP based on number of purines/pyrimidines
+NanoporeHDP* purine_composition_hdp_model(char* purine_alphabet, int64_t num_purines,
+                                          char* pyrimidine_alphabet, int64_t num_pyrimidines,
+                                          int64_t kmer_length, double base_gamma, double middle_gamma,
+                                          double leaf_gamma, double sampling_grid_start, double sampling_grid_stop,
+                                          int64_t sampling_grid_length, const char* model_filepath);
+NanoporeHDP* purine_composition_hdp_model_2(char* purine_alphabet, int64_t num_purines,
+                                            char* pyrimidine_alphabet, int64_t num_pyrimidines,
+                                            int64_t kmer_length, double base_gamma_alpha, double base_gamma_beta,
+                                            double middle_gamma_alpha, double middle_gamma_beta,
+                                            double leaf_gamma_alpha, double leaf_gamma_beta, double sampling_grid_start,
+                                            double sampling_grid_stop, int64_t sampling_grid_length,
+                                            const char* model_filepath);
+
 // second level of HDP based on multiset of nucleotides
 NanoporeHDP* multiset_hdp_model(const char* alphabet, int64_t alphabet_size, int64_t kmer_length,
                                 double base_gamma, double middle_gamma, double leaf_gamma,
@@ -69,6 +83,11 @@ NanoporeHDP* middle_2_nts_hdp_model_2(const char* alphabet, int64_t alphabet_siz
                                       double middle_gamma_beta, double leaf_gamma_alpha, double leaf_gamma_beta,
                                       double sampling_grid_start, double sampling_grid_stop,
                                       int64_t sampling_grid_length, const char* model_filepath);
+
+
+void serialize_nhdp(NanoporeHDP* nhdp, const char* filepath);
+NanoporeHDP* deserialize_nhdp(const char* filepath);
+
 
 
 // n^k

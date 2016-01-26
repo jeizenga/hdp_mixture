@@ -75,7 +75,7 @@ int64_t get_dir_proc_parent_id(HierarchicalDirichletProcess* hdp, int64_t dp_id)
 // serialization
 
 // note: only allowed for HDPs with finalized structure
-void serialize_hdp(HierarchicalDirichletProcess* hdp, const char* filepath);
-HierarchicalDirichletProcess* deserialize_hdp(const char* filepath);
+void serialize_hdp(HierarchicalDirichletProcess* hdp, FILE* out);
+HierarchicalDirichletProcess* deserialize_hdp(FILE* in);
 
 #endif // HDP_H_INCLUDED
