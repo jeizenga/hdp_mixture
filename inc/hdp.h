@@ -5,6 +5,7 @@
 #include <stdbool.h>
 
 typedef struct HierarchicalDirichletProcess HierarchicalDirichletProcess;
+typedef struct DistributionMetricMemo DistributionMetricMemo;
 
 // constructors and destructor
 
@@ -71,6 +72,15 @@ double* get_gamma_alpha_params_copy(HierarchicalDirichletProcess* hdp);
 double* get_gamma_beta_params_copy(HierarchicalDirichletProcess* hdp);
 int64_t get_dir_proc_num_factors(HierarchicalDirichletProcess* hdp, int64_t dp_id);
 int64_t get_dir_proc_parent_id(HierarchicalDirichletProcess* hdp, int64_t dp_id);
+
+// computing distance between DP distributions
+
+double get_dir_proc_distance(DistributionMetricMemo* memo, int64_t dp_id_1, int64_t dp_id_2);
+
+DistributionMetricMemo* new_kl_divergence_memo(HierarchicalDirichletProcess* hdp);
+DistributionMetricMemo* new_hellinger_distance_memo(HierarchicalDirichletProcess* hdp);
+DistributionMetricMemo* new_l2_distance_memo(HierarchicalDirichletProcess* hdp);
+DistributionMetricMemo* new_shannon_jensen_distance_memo(HierarchicalDirichletProcess* hdp);
 
 // serialization
 
