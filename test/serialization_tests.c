@@ -183,9 +183,6 @@ void test_serialization(CuTest* ct) {
     double* data = stList_toDoublePtr(data_list, &data_length);
     int64_t* dp_ids = stList_toIntPtr(dp_id_list, &dp_ids_length);
     
-    stList_destruct(dp_id_list);
-    stList_destruct(data_list);
-    
     fclose(data_file);
     fclose(dp_id_file);
         
@@ -270,53 +267,76 @@ void test_serialization(CuTest* ct) {
     
     destroy_hier_dir_proc(original_hdp);
     
-    remove(filepath);
-}
-
-void test_nhdp_serialization(CuTest* ct) {
-    
-    FILE* data_file = fopen("/Users/Jordan/Documents/GitHub/hdp_mixture/test/data.txt","r");
-    FILE* dp_id_file = fopen("/Users/Jordan/Documents/GitHub/hdp_mixture/test/dps.txt", "r");
-    
-    stList* data_list = stList_construct3(0, free);
-    stList* dp_id_list = stList_construct3(0, free);
-    
-    char* data_line = stFile_getLineFromFile(data_file);
-    char* dp_id_line = stFile_getLineFromFile(dp_id_file);
-    
-    double* datum_ptr;
-    int64_t* dp_id_ptr;
-    while (data_line != NULL) {
-        
-        datum_ptr = (double*) malloc(sizeof(double));
-        dp_id_ptr = (int64_t*) malloc(sizeof(int64_t));
-        
-        sscanf(data_line, "%lf", datum_ptr);
-        sscanf(dp_id_line, "%"SCNd64, dp_id_ptr);
-        
-        if (*dp_id_ptr != 4) {
-            stList_append(data_list, datum_ptr);
-            stList_append(dp_id_list, dp_id_ptr);
-        }
-        
-        free(data_line);
-        data_line = stFile_getLineFromFile(data_file);
-        
-        free(dp_id_line);
-        dp_id_line = stFile_getLineFromFile(dp_id_file);
-    }
-    
-    int64_t data_length;
-    int64_t dp_ids_length;
-    
-    double* data = stList_toDoublePtr(data_list, &data_length);
-    int64_t* dp_ids = stList_toIntPtr(dp_id_list, &dp_ids_length);
+    data = stList_toDoublePtr(data_list, &data_length);
+    dp_ids = stList_toIntPtr(dp_id_list, &dp_ids_length);
     
     stList_destruct(dp_id_list);
     stList_destruct(data_list);
     
-    fclose(data_file);
-    fclose(dp_id_file);
+    double* gamma_params = (double*) malloc(sizeof(double) * depth);
+    gamma_params[0] = 1.0; gamma_params[1] = 1.0; gamma_params[2] = 2.0;
+    
+    original_hdp = new_hier_dir_proc(num_dir_proc, depth, gamma_params, grid_start,
+                                     grid_end, grid_length, mu, nu, alpha, beta);
+    
+    
+    set_dir_proc_parent(original_hdp, 1, 0);
+    set_dir_proc_parent(original_hdp, 2, 0);
+    set_dir_proc_parent(original_hdp, 3, 1);
+    set_dir_proc_parent(original_hdp, 4, 1);
+    set_dir_proc_parent(original_hdp, 5, 1);
+    set_dir_proc_parent(original_hdp, 6, 2);
+    set_dir_proc_parent(original_hdp, 7, 2);
+    finalize_hdp_structure(original_hdp);
+    
+    main_file = fopen(filepath, "w");
+    serialize_hdp(original_hdp, main_file);
+    fclose(main_file);
+    main_file = fopen(filepath, "r");
+    copy_hdp = deserialize_hdp(main_file);
+    fclose(main_file);
+    copy_file = fopen(copy_filepath, "w");
+    serialize_hdp(copy_hdp, copy_file);
+    fclose(copy_file);
+    add_hdp_copy_tests(ct, original_hdp, copy_hdp);
+    destroy_hier_dir_proc(copy_hdp);
+    remove(copy_filepath);
+    
+    pass_data_to_hdp(original_hdp, data, dp_ids, data_length);
+    main_file = fopen(filepath, "w");
+    serialize_hdp(original_hdp, main_file);
+    fclose(main_file);
+    main_file = fopen(filepath, "r");
+    copy_hdp = deserialize_hdp(main_file);
+    fclose(main_file);
+    copy_file = fopen(copy_filepath, "w");
+    serialize_hdp(copy_hdp, copy_file);
+    fclose(copy_file);
+    add_hdp_copy_tests(ct, original_hdp, copy_hdp);
+    destroy_hier_dir_proc(copy_hdp);
+    remove(copy_filepath);
+    
+    execute_gibbs_sampling(original_hdp, 10, 10, 10, false);
+    finalize_distributions(original_hdp);
+    main_file = fopen(filepath, "w");
+    serialize_hdp(original_hdp, main_file);
+    fclose(main_file);
+    main_file = fopen(filepath, "r");
+    copy_hdp = deserialize_hdp(main_file);
+    fclose(main_file);
+    copy_file = fopen(copy_filepath, "w");
+    serialize_hdp(copy_hdp, copy_file);
+    fclose(copy_file);
+    add_hdp_copy_tests(ct, original_hdp, copy_hdp);
+    destroy_hier_dir_proc(copy_hdp);
+    remove(copy_filepath);
+    
+    destroy_hier_dir_proc(original_hdp);
+    
+    remove(filepath);
+}
+
+void test_nhdp_serialization(CuTest* ct) {
     
     NanoporeHDP* nhdp = flat_hdp_model("ACGT", 4, 6, 4.0, 20.0, 0.0, 100.0, 100,
                                        "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_model.model");

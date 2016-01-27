@@ -809,6 +809,8 @@ HierarchicalDirichletProcess* new_hier_dir_proc(int64_t num_dps, int64_t depth, 
     hdp->log_sum_memo = new_log_sum_memo();
 
     hdp->sample_gamma = false;
+    hdp->gamma_alpha = NULL;
+    hdp->gamma_beta = NULL;
     hdp->s_aux_vector = NULL;
     hdp->w_aux_vector = NULL;
 
@@ -2065,7 +2067,7 @@ DistributionMetricMemo* new_distr_metric_memo(HierarchicalDirichletProcess* hdp,
     int64_t num_dps = hdp->num_dps;
     memo->num_distrs = num_dps;
     
-    int64_t num_entries = ((num_distrs - 1) * num_distrs) / 2;
+    int64_t num_entries = ((num_dps - 1) * num_dps) / 2;
     double* memo_matrix = (double*) malloc(sizeof(double) * num_entries);
     memo->memo_matrix = memo_matrix;
     for (int64_t i = 0; i < num_entries; i++) {
@@ -2118,8 +2120,17 @@ double dir_proc_kl_divergence(HierarchicalDirichletProcess* hdp, int64_t dp_id_1
     
     double divergence = 0.0;
     
-    double* distr_1 = hdp->dps[dp_id_1]->posterior_predictive;
-    double* distr_2 = hdp->dps[dp_id_2]->posterior_predictive;
+    DirichletProcess* dp_1 = hdp->dps[dp_id_1];
+    DirichletProcess* dp_2 = hdp->dps[dp_id_2];
+    while (!dp_1->observed) {
+        dp_1 = dp_1->parent;
+    }
+    while (!dp_2->observed) {
+        dp_2 = dp_2->parent;
+    }
+    
+    double* distr_1 = dp_1->posterior_predictive;
+    double* distr_2 = dp_2->posterior_predictive;
     
     double left_pt = distr_1[0] * log(distr_1[0] / distr_2[0]) + distr_2[0] * log(distr_2[0] / distr_1[0]);
     double right_pt;
@@ -2152,8 +2163,17 @@ double dir_proc_hellinger_distance(HierarchicalDirichletProcess* hdp, int64_t dp
     
     double integral = 0.0;
     
-    double* distr_1 = hdp->dps[dp_id_1]->posterior_predictive;
-    double* distr_2 = hdp->dps[dp_id_2]->posterior_predictive;
+    DirichletProcess* dp_1 = hdp->dps[dp_id_1];
+    DirichletProcess* dp_2 = hdp->dps[dp_id_2];
+    while (!dp_1->observed) {
+        dp_1 = dp_1->parent;
+    }
+    while (!dp_2->observed) {
+        dp_2 = dp_2->parent;
+    }
+    
+    double* distr_1 = dp_1->posterior_predictive;
+    double* distr_2 = dp_2->posterior_predictive;
     
     double left_pt = sqrt(distr_1[0] * distr_2[0]);
     double right_pt;
@@ -2186,15 +2206,24 @@ double dir_proc_l2_distance(HierarchicalDirichletProcess* hdp, int64_t dp_id_1, 
     
     double integral = 0.0;
     
-    double* distr_1 = hdp->dps[dp_id_1]->posterior_predictive;
-    double* distr_2 = hdp->dps[dp_id_2]->posterior_predictive;
+    DirichletProcess* dp_1 = hdp->dps[dp_id_1];
+    DirichletProcess* dp_2 = hdp->dps[dp_id_2];
+    while (!dp_1->observed) {
+        dp_1 = dp_1->parent;
+    }
+    while (!dp_2->observed) {
+        dp_2 = dp_2->parent;
+    }
     
-    double diff = distr_1[0] - distr_2[0]
+    double* distr_1 = dp_1->posterior_predictive;
+    double* distr_2 = dp_2->posterior_predictive;
+    
+    double diff = distr_1[0] - distr_2[0];
     double left_pt = diff * diff;
     double right_pt;
     double dx;
     for (int64_t i = 1; i < grid_length; i++) {
-        diff = distr_1[i] - distr_2[i]
+        diff = distr_1[i] - distr_2[i];
         right_pt = diff * diff;
         
         dx = grid[i] - grid[i - 1];
@@ -2222,9 +2251,17 @@ double dir_proc_shannon_jensen_distance(HierarchicalDirichletProcess* hdp, int64
     
     double divergence = 0.0;
     
-    double* distr_1 = hdp->dps[dp_id_1]->posterior_predictive;
-    double* distr_2 = hdp->dps[dp_id_2]->posterior_predictive;
+    DirichletProcess* dp_1 = hdp->dps[dp_id_1];
+    DirichletProcess* dp_2 = hdp->dps[dp_id_2];
+    while (!dp_1->observed) {
+        dp_1 = dp_1->parent;
+    }
+    while (!dp_2->observed) {
+        dp_2 = dp_2->parent;
+    }
     
+    double* distr_1 = dp_1->posterior_predictive;
+    double* distr_2 = dp_2->posterior_predictive;
     double mean_distr_pt = 0.5 * (distr_1[0] + distr_2[0]);
     double left_pt = 0.5 * (distr_1[0] * log(distr_1[0] / mean_distr_pt) + distr_2[0] * log(distr_2[0] / mean_distr_pt));
     double right_pt;

@@ -379,7 +379,7 @@ double get_nanopore_kmer_density(NanoporeHDP* nhdp, double x, char* kmer) {
 }
 
 double get_kmer_distr_distance(NanoporeHDP* nhdp, DistributionMetricMemo* memo, char* kmer_1, char* kmer_2) {
-    return get_dir_proc_distance(memo, nhdp_kmer_id(kmer_1), nhdp_kmer_id(kmer_2));
+    return get_dir_proc_distance(memo, nhdp_kmer_id(nhdp, kmer_1), nhdp_kmer_id(nhdp, kmer_2));
 }
 
 DistributionMetricMemo* new_nhdp_kl_divergence_memo(NanoporeHDP* nhdp) {

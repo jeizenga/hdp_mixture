@@ -14,9 +14,7 @@ INC:=-I${INCDIR} -I${SONLIBDIR} -I${EXTERNDIR}
 LINK:=-L${SONLIBDIR} -L${OBJDIR} -lm
 SHELL:=/bin/bash
 
-all: ${OBJDIR}/CuTest.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/rnglib.o ${OBJDIR}/ranlib.o ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/hdp.o ${OBJDIR}/nanopore_hdp.o ${BINDIR}/main ${BINDIR}/utils_tests ${BINDIR}/nanopore_hdp_tests ${BINDIR}/serialization_tests ${BINDIR}/distr_script
-
-
+all: ${OBJDIR}/CuTest.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/rnglib.o ${OBJDIR}/ranlib.o ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/hdp.o ${OBJDIR}/nanopore_hdp.o ${BINDIR}/main ${BINDIR}/utils_tests ${BINDIR}/nanopore_hdp_tests ${BINDIR}/serialization_tests ${BINDIR}/distribution_comparison_tests ${BINDIR}/distr_script
 
 
 ${OBJDIR}/nanopore_hdp.o: ${OBJDIR}/hdp.o
@@ -67,6 +65,12 @@ ${BINDIR}/serialization_tests: ${TESTDIR}/serialization_tests.c ${OBJDIR}/hdp_ma
 	${CC} ${CFLAGS} ${OBJDIR}/serialization_tests.o ${OBJDIR}/hdp.o ${OBJDIR}/hdp_math_utils.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/ranlib.o ${OBJDIR}/rnglib.o ${OBJDIR}/nanopore_hdp.o ${OBJDIR}/CuTest.o ${INC} ${LINK} -o ${BINDIR}/serialization_tests
 	chmod +x ${BINDIR}/serialization_tests
 	rm ${OBJDIR}/serialization_tests.o	
+
+${BINDIR}/distribution_comparison_tests: ${TESTDIR}/distribution_comparison_tests.c ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/hdp.o ${OBJDIR}/CuTest.o ${OBJDIR}/nanopore_hdp.o
+	${CC} ${CFLAGS} -c ${TESTDIR}/distribution_comparison_tests.c ${INC} -o ${OBJDIR}/distribution_comparison_tests.o
+	${CC} ${CFLAGS} ${OBJDIR}/distribution_comparison_tests.o ${OBJDIR}/hdp.o ${OBJDIR}/hdp_math_utils.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/ranlib.o ${OBJDIR}/rnglib.o ${OBJDIR}/nanopore_hdp.o ${OBJDIR}/CuTest.o ${INC} ${LINK} -o ${BINDIR}/distribution_comparison_tests
+	chmod +x ${BINDIR}/distribution_comparison_tests
+	rm ${OBJDIR}/distribution_comparison_tests.o	
 
 ${BINDIR}/distr_script: ${TESTDIR}/distr_script.c ${OBJDIR}/nanopore_hdp.o ${OBJDIR}/hdp_math_utils.o
 	${CC} ${CFLAGS} -c ${TESTDIR}/distr_script.c ${INC} -o ${OBJDIR}/distr_script.o
