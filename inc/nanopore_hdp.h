@@ -14,6 +14,7 @@
 #include "hdp.h"
 
 typedef struct NanoporeHDP NanoporeHDP;
+typedef struct NanoporeDistributionMetricMemo NanoporeDistributionMetricMemo;
 
 void destroy_nanopore_hdp(NanoporeHDP* nhdp);
 
@@ -40,12 +41,12 @@ void update_nhdp_from_alignment_with_filter(NanoporeHDP* nhdp, const char* align
 
 // computing metrics on distributions
 
-double get_kmer_distr_distance(NanoporeHDP* nhdp, DistributionMetricMemo* memo, char* kmer_1, char* kmer_2);
+double get_kmer_distr_distance(NanoporeDistributionMetricMemo* memo, char* kmer_1, char* kmer_2);
 
-DistributionMetricMemo* new_nhdp_kl_divergence_memo(NanoporeHDP* nhdp);
-DistributionMetricMemo* new_nhdp_hellinger_distance_memo(NanoporeHDP* nhdp);
-DistributionMetricMemo* new_nhdp_l2_distance_memo(NanoporeHDP* nhdp);
-DistributionMetricMemo* new_nhdp_shannon_jensen_distance_memo(NanoporeHDP* nhdp);
+NanoporeDistributionMetricMemo* new_nhdp_kl_divergence_memo(NanoporeHDP* nhdp);
+NanoporeDistributionMetricMemo* new_nhdp_hellinger_distance_memo(NanoporeHDP* nhdp);
+NanoporeDistributionMetricMemo* new_nhdp_l2_distance_memo(NanoporeHDP* nhdp);
+NanoporeDistributionMetricMemo* new_nhdp_shannon_jensen_distance_memo(NanoporeHDP* nhdp);
 
 // single level HDP
 NanoporeHDP* flat_hdp_model(const char* alphabet, int64_t alphabet_size, int64_t kmer_length, double base_gamma,

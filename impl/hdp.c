@@ -88,6 +88,8 @@ struct HierarchicalDirichletProcess {
     double* gamma_beta;
     double* w_aux_vector;
     bool* s_aux_vector;
+    
+    stSet* distr_metric_memos;
 };
 
 struct DistributionMetricMemo {
@@ -229,6 +231,32 @@ int64_t get_dir_proc_parent_id(HierarchicalDirichletProcess* hdp, int64_t dp_id)
     }
 }
 
+DistributionMetricMemo* new_distr_metric_memo(HierarchicalDirichletProcess* hdp,
+                                              double (*metric_func) (HierarchicalDirichletProcess*, int64_t, int64_t)) {
+    DistributionMetricMemo* memo = (DistributionMetricMemo*) malloc(sizeof(DistributionMetricMemo));
+    int64_t num_dps = hdp->num_dps;
+    memo->num_distrs = num_dps;
+    
+    int64_t num_entries = ((num_dps - 1) * num_dps) / 2;
+    double* memo_matrix = (double*) malloc(sizeof(double) * num_entries);
+    memo->memo_matrix = memo_matrix;
+    for (int64_t i = 0; i < num_entries; i++) {
+        memo_matrix[i] = -1.0;
+    }
+    
+    memo->hdp = hdp;
+    memo->metric_func = metric_func;
+    
+    stSet_insert(hdp->distr_metric_memos, memo);
+    
+    return memo;
+}
+
+void destroy_distr_metric_memo(void* memo) {
+    DistributionMetricMemo* metric_memo = (DistributionMetricMemo*) memo;
+    free(metric_memo->memo_matrix);
+    free(metric_memo);
+}
 
 void cache_base_factor_params(Factor* fctr, double mu, double nu, double two_alpha, double beta, double log_post_term) {
     if (fctr->factor_type != BASE) {
@@ -813,6 +841,8 @@ HierarchicalDirichletProcess* new_hier_dir_proc(int64_t num_dps, int64_t depth, 
     hdp->gamma_beta = NULL;
     hdp->s_aux_vector = NULL;
     hdp->w_aux_vector = NULL;
+    
+    hdp->distr_metric_memos = stSet_construct2(&destroy_distr_metric_memo);
 
     return hdp;
 }
@@ -875,6 +905,7 @@ void destroy_hier_dir_proc(HierarchicalDirichletProcess* hdp) {
     free(hdp->gamma_beta);
     free(hdp->w_aux_vector);
     free(hdp->s_aux_vector);
+    stSet_destruct(hdp->distr_metric_memos);
     free(hdp);
 }
 
@@ -1167,6 +1198,15 @@ void finalize_hdp_structure(HierarchicalDirichletProcess* hdp) {
     hdp->finalized = true;
 }
 
+void reset_distr_metric_memo(DistributionMetricMemo* memo) {
+    int64_t num_distrs = memo->num_distrs;
+    int64_t num_entries = ((num_distrs - 1) * num_distrs) / 2;
+    double* memo_entries = memo->memo_matrix;
+    for (int64_t i = 0; i < num_entries; i++) {
+        memo_entries[i] = -1.0;
+    }
+}
+
 void reset_hdp_data(HierarchicalDirichletProcess* hdp) {
     if (hdp->data == NULL && hdp->data_pt_dp_id == NULL) {
         return;
@@ -1195,6 +1235,14 @@ void reset_hdp_data(HierarchicalDirichletProcess* hdp) {
 
         dp->observed = false;
     }
+    
+    stSetIterator* memo_iter = stSet_getIterator(hdp->distr_metric_memos);
+    DistributionMetricMemo* memo = stSet_getNext(memo_iter);
+    while (memo != NULL) {
+        reset_distr_metric_memo(memo);
+        memo = stSet_getNext(memo_iter);
+    }
+    stSet_destructIterator(memo_iter);
     
     hdp->splines_finalized = false;
     
@@ -2059,30 +2107,6 @@ void serialize_factor_tree_internal(FILE* out, Factor* fctr, int64_t parent_id, 
         }
         stSet_destructIterator(iter);
     }
-}
-
-DistributionMetricMemo* new_distr_metric_memo(HierarchicalDirichletProcess* hdp,
-                                              double (*metric_func) (HierarchicalDirichletProcess*, int64_t, int64_t)) {
-    DistributionMetricMemo* memo = (DistributionMetricMemo*) malloc(sizeof(DistributionMetricMemo));
-    int64_t num_dps = hdp->num_dps;
-    memo->num_distrs = num_dps;
-    
-    int64_t num_entries = ((num_dps - 1) * num_dps) / 2;
-    double* memo_matrix = (double*) malloc(sizeof(double) * num_entries);
-    memo->memo_matrix = memo_matrix;
-    for (int64_t i = 0; i < num_entries; i++) {
-        memo_matrix[i] = -1.0;
-    }
-    
-    memo->hdp = hdp;
-    memo->metric_func = metric_func;
-    
-    return memo;
-}
-
-void destroy_distr_metric_memo(DistributionMetricMemo* memo) {
-    free(memo->memo_matrix);
-    free(memo);
 }
 
 double get_dir_proc_distance(DistributionMetricMemo* memo, int64_t dp_id_1, int64_t dp_id_2) {

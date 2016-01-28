@@ -31,6 +31,12 @@ struct NanoporeHDP {
     char* alphabet;
     int64_t alphabet_size;
     int64_t kmer_length;
+    stSet* distr_metric_memos;
+};
+
+struct NanoporeDistributionMetricMemo {
+    NanoporeHDP* nhdp;
+    DistributionMetricMemo* memo;
 };
 
 NanoporeHDP* package_nanopore_hdp(HierarchicalDirichletProcess* hdp, const char* alphabet, int64_t alphabet_size,
@@ -72,11 +78,15 @@ NanoporeHDP* package_nanopore_hdp(HierarchicalDirichletProcess* hdp, const char*
     nhdp->alphabet_size = alphabet_size;
     nhdp->kmer_length = kmer_length;
     
+    // note: destroying the HDP housed in the NHDP will destroy the DistributionMetricMemo
+    nhdp->distr_metric_memos = stSet_construct2(&free);
+    
     return nhdp;
 }
 
 void destroy_nanopore_hdp(NanoporeHDP* nhdp) {
     destroy_hier_dir_proc(nhdp->hdp);
+    stSet_destruct(nhdp->distr_metric_memos);
     free(nhdp->alphabet);
     free(nhdp);
 }
@@ -378,24 +388,32 @@ double get_nanopore_kmer_density(NanoporeHDP* nhdp, double x, char* kmer) {
     return dir_proc_density(nhdp->hdp, x, nhdp_kmer_id(nhdp, kmer));
 }
 
-double get_kmer_distr_distance(NanoporeHDP* nhdp, DistributionMetricMemo* memo, char* kmer_1, char* kmer_2) {
-    return get_dir_proc_distance(memo, nhdp_kmer_id(nhdp, kmer_1), nhdp_kmer_id(nhdp, kmer_2));
+double get_kmer_distr_distance(NanoporeDistributionMetricMemo* memo, char* kmer_1, char* kmer_2) {
+    NanoporeHDP* nhdp = memo->nhdp;
+    return get_dir_proc_distance(memo->memo, nhdp_kmer_id(nhdp, kmer_1), nhdp_kmer_id(nhdp, kmer_2));
 }
 
-DistributionMetricMemo* new_nhdp_kl_divergence_memo(NanoporeHDP* nhdp) {
-    return new_kl_divergence_memo(nhdp->hdp);
+NanoporeDistributionMetricMemo* package_nanopore_metric_memo(NanoporeHDP* nhdp, DistributionMetricMemo* memo) {
+    NanoporeDistributionMetricMemo* nanopore_memo = (NanoporeDistributionMetricMemo*) malloc(sizeof(NanoporeDistributionMetricMemo));
+    nanopore_memo->nhdp = nhdp;
+    nanopore_memo->memo = memo;
+    return nanopore_memo;
 }
 
-DistributionMetricMemo* new_nhdp_hellinger_distance_memo(NanoporeHDP* nhdp) {
-    return new_hellinger_distance_memo(nhdp->hdp);
+NanoporeDistributionMetricMemo* new_nhdp_kl_divergence_memo(NanoporeHDP* nhdp) {
+    return package_nanopore_metric_memo(nhdp, new_kl_divergence_memo(nhdp->hdp));
 }
 
-DistributionMetricMemo* new_nhdp_l2_distance_memo(NanoporeHDP* nhdp) {
-    return new_l2_distance_memo(nhdp->hdp);
+NanoporeDistributionMetricMemo* new_nhdp_hellinger_distance_memo(NanoporeHDP* nhdp) {
+    return package_nanopore_metric_memo(nhdp, new_hellinger_distance_memo(nhdp->hdp));
 }
 
-DistributionMetricMemo* new_nhdp_shannon_jensen_distance_memo(NanoporeHDP* nhdp) {
-    return new_shannon_jensen_distance_memo(nhdp->hdp);
+NanoporeDistributionMetricMemo* new_nhdp_l2_distance_memo(NanoporeHDP* nhdp) {
+    return package_nanopore_metric_memo(nhdp, new_l2_distance_memo(nhdp->hdp));
+}
+
+NanoporeDistributionMetricMemo* new_nhdp_shannon_jensen_distance_memo(NanoporeHDP* nhdp) {
+    return package_nanopore_metric_memo(nhdp, new_shannon_jensen_distance_memo(nhdp->hdp));
 }
 
 int64_t flat_hdp_num_dps(int64_t alphabet_size, int64_t kmer_length) {

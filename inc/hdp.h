@@ -81,6 +81,8 @@ DistributionMetricMemo* new_kl_divergence_memo(HierarchicalDirichletProcess* hdp
 DistributionMetricMemo* new_hellinger_distance_memo(HierarchicalDirichletProcess* hdp);
 DistributionMetricMemo* new_l2_distance_memo(HierarchicalDirichletProcess* hdp);
 DistributionMetricMemo* new_shannon_jensen_distance_memo(HierarchicalDirichletProcess* hdp);
+// note: the lifetime of a DistributionMetricMemo is tied to the lifetime of the
+// HierarchicalDirichletProcess that generated it
 
 // serialization
 

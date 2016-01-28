@@ -41,11 +41,15 @@ void add_true_metric_tests(CuTest* ct, DistributionMetricMemo* memo, Hierarchica
     int64_t num_dps = get_num_dir_proc(hdp);
     
     for (int64_t i = 0; i < num_dps - 2; i++) {
-        double dist_ij = get_dir_proc_distance(memo, i, i + 1);
-        double dist_jk = get_dir_proc_distance(memo, i + 1, i + 2);
-        double dist_ik = get_dir_proc_distance(memo, i, i + 2);
-        
-        CuAssert(ct, "triangle inequality fail\n", dist_ij + dist_jk >= dist_ik);
+        for (int64_t j = i + 1; j < num_dps - 1; j++) {
+            for (int64_t k = j + 1; k < num_dps; k++) {
+                double dist_ij = get_dir_proc_distance(memo, i, j);
+                double dist_jk = get_dir_proc_distance(memo, j, k);
+                double dist_ik = get_dir_proc_distance(memo, i, k);
+                
+                CuAssert(ct, "triangle inequality fail\n", dist_ij + dist_jk >= dist_ik);
+            }
+        }
     }
     
 }
@@ -159,12 +163,12 @@ void test_nhdp_distrs(CuTest* ct) {
     execute_nhdp_gibbs_sampling(nhdp, 100, 0, 1, false);
     finalize_nhdp_distributions(nhdp);
     
-    DistributionMetricMemo* memo = new_nhdp_kl_divergence_memo(nhdp);
+    NanoporeDistributionMetricMemo* memo = new_nhdp_kl_divergence_memo(nhdp);
     
-    CuAssertDblEquals_Msg(ct, "kmer symmetry fail\n",  get_kmer_distr_distance(nhdp, memo, "ACCCAA", "ATGATT"),
-                          get_kmer_distr_distance(nhdp, memo, "ATGATT", "ACCCAA"), 0.000000001);
-    CuAssertDblEquals_Msg(ct, "kmer symmetry fail\n",  get_kmer_distr_distance(nhdp, memo, "GCACAT", "GGGGTA"),
-                          get_kmer_distr_distance(nhdp, memo, "GGGGTA", "GCACAT"), 0.000000001);
+    CuAssertDblEquals_Msg(ct, "kmer symmetry fail\n",  get_kmer_distr_distance(memo, "ACCCAA", "ATGATT"),
+                          get_kmer_distr_distance(memo, "ATGATT", "ACCCAA"), 0.000000001);
+    CuAssertDblEquals_Msg(ct, "kmer symmetry fail\n",  get_kmer_distr_distance(memo, "GCACAT", "GGGGTA"),
+                          get_kmer_distr_distance(memo, "GGGGTA", "GCACAT"), 0.000000001);
 }
 
 
