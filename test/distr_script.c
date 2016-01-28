@@ -75,8 +75,8 @@ void write_all_kmer_distrs(NanoporeHDP* nhdp, double* eval_grid, int64_t grid_le
 
 
 int main(int argc, char** argv) {
-    if (argc != 3 && argc != 4) {
-        fprintf(stderr, "Usage: distr_script [alignment_file] [model_file] (align_filter).\n");
+    if (argc != 6 && argc != 7) {
+        fprintf(stderr, "Usage: distr_script [alignment_file] [model_file] [burn_in] [num_samples] [thinning] (align_filter).\n");
         exit(EXIT_FAILURE);
     }
     
@@ -106,8 +106,8 @@ int main(int argc, char** argv) {
     fprintf(stderr, "Initializing HDP...\n");
     
     char* filter = NULL;
-    if (argc == 4) {
-        filter = argv[3];
+    if (argc == 7) {
+        filter = argv[6];
     }
     
     int64_t alphabet_size = 4;
@@ -125,7 +125,7 @@ int main(int argc, char** argv) {
     
     fprintf(stderr, "Initializing data...\n");
     
-    if (argc == 3) {
+    if (argc == 7) {
         update_nhdp_from_alignment(nhdp, alignment_filepath, false);
     }
     else {
@@ -134,11 +134,11 @@ int main(int argc, char** argv) {
     
     fprintf(stderr, "Executing Gibbs sampling...\n");
     
-    int64_t num_samples = 5000;
-    int64_t burn_in = 400000;
-    int64_t thinning = 600000 / num_samples;
+    int64_t burn_in = atoi(argv[3]);
+    int64_t num_samples = atoi(argv[4]);
+    int64_t thinning = atoi(argv[5]);
     
-    //execute_nhdp_gibbs_sampling(nhdp, num_samples, burn_in, thinning, true);
+    execute_nhdp_gibbs_sampling(nhdp, num_samples, burn_in, thinning, true);
     
     finalize_nhdp_distributions(nhdp);
     
@@ -150,9 +150,5 @@ int main(int argc, char** argv) {
     
     free(eval_grid);
     
-    destroy_nanopore_hdp(nhdp);
-    
-    
-    
-    
+    destroy_nanopore_hdp(nhdp);    
 }

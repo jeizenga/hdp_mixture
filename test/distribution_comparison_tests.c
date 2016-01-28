@@ -148,11 +148,32 @@ void test_distr_metrics(CuTest* ct) {
     add_true_metric_tests(ct, memo, hdp);
 }
 
+void test_nhdp_distrs(CuTest* ct) {
+    
+    NanoporeHDP* nhdp = flat_hdp_model("ACGT", 4, 6, 4.0, 20.0, 0.0, 100.0, 100,
+                                       "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_model.model");
+    
+    update_nhdp_from_alignment(nhdp, "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_alignment.tsv",
+                               false);
+    
+    execute_nhdp_gibbs_sampling(nhdp, 100, 0, 1, false);
+    finalize_nhdp_distributions(nhdp);
+    
+    DistributionMetricMemo* memo = new_nhdp_kl_divergence_memo(nhdp);
+    
+    CuAssertDblEquals_Msg(ct, "kmer symmetry fail\n",  get_kmer_distr_distance(nhdp, memo, "ACCCAA", "ATGATT"),
+                          get_kmer_distr_distance(nhdp, memo, "ATGATT", "ACCCAA"), 0.000000001);
+    CuAssertDblEquals_Msg(ct, "kmer symmetry fail\n",  get_kmer_distr_distance(nhdp, memo, "GCACAT", "GGGGTA"),
+                          get_kmer_distr_distance(nhdp, memo, "GGGGTA", "GCACAT"), 0.000000001);
+}
+
+
 CuSuite* get_suite() {
     
     CuSuite* suite = CuSuiteNew();
     
     SUITE_ADD_TEST(suite, test_distr_metrics);
+    SUITE_ADD_TEST(suite, test_nhdp_distrs);
     
     return suite;
 }
