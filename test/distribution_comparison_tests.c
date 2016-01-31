@@ -21,12 +21,10 @@ void add_distr_metric_tests(CuTest* ct, DistributionMetricMemo* memo, Hierarchic
     int64_t num_dps = get_num_dir_proc(hdp);
     
     for (int64_t i = 0; i < num_dps; i++) {
-        //printf("self comparison test\n");
         CuAssertDblEquals_Msg(ct, "self comparison fail\n", get_dir_proc_distance(memo, i, i),
                               0.0, 0.000000001);
         
         for (int64_t j = 0; j < i; j++) {
-            //printf("get distance\n");
             double dist = get_dir_proc_distance(memo, i, j);
             
             CuAssert(ct, "nonnegativity fail\n", dist >= 0.0);
@@ -46,8 +44,9 @@ void add_true_metric_tests(CuTest* ct, DistributionMetricMemo* memo, Hierarchica
                 double dist_ij = get_dir_proc_distance(memo, i, j);
                 double dist_jk = get_dir_proc_distance(memo, j, k);
                 double dist_ik = get_dir_proc_distance(memo, i, k);
+
+                CuAssert(ct, "triangle inequality fail\n", dist_ij + dist_jk >= dist_ik - .0001);
                 
-                CuAssert(ct, "triangle inequality fail\n", dist_ij + dist_jk >= dist_ik);
             }
         }
     }
@@ -150,6 +149,8 @@ void test_distr_metrics(CuTest* ct) {
     memo = new_shannon_jensen_distance_memo(hdp);
     add_distr_metric_tests(ct, memo, hdp);
     add_true_metric_tests(ct, memo, hdp);
+    
+    destroy_hier_dir_proc(hdp);
 }
 
 void test_nhdp_distrs(CuTest* ct) {
@@ -169,6 +170,8 @@ void test_nhdp_distrs(CuTest* ct) {
                           get_kmer_distr_distance(memo, "ATGATT", "ACCCAA"), 0.000000001);
     CuAssertDblEquals_Msg(ct, "kmer symmetry fail\n",  get_kmer_distr_distance(memo, "GCACAT", "GGGGTA"),
                           get_kmer_distr_distance(memo, "GGGGTA", "GCACAT"), 0.000000001);
+    
+    destroy_nanopore_hdp(nhdp);
 }
 
 

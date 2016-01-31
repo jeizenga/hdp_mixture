@@ -14,6 +14,7 @@
 
 #define MODEL_ROW_HEADER_LENGTH 1
 #define MODEL_MEAN_ENTRY 0
+#define MODEL_NOISE_ENTRY 1
 #define MODEL_ENTRY_LENGTH 5
 
 #include <stdio.h>
@@ -129,6 +130,32 @@ void finalize_nhdp_distributions(NanoporeHDP* nhdp) {
     finalize_distributions(nhdp->hdp);
 }
 
+//void normal_inverse_gamma_params_from_minION(const char* model_filepath, double* mu_out, double* nu_out,
+//                                             double* alpha_out, double* beta_out) {
+//    
+//    FILE* model_file = fopen(model_filepath, "r");
+//    
+//    char* line = stFile_getLineFromFile(model_file);
+//    stList* tokens = stString_split(line);
+//    
+//    int64_t table_length = (stList_length(tokens) - MODEL_ROW_HEADER_LENGTH) / MODEL_ENTRY_LENGTH;
+//    double* means = (double*) malloc(sizeof(double) * table_length);
+//    
+//    int64_t offset = MODEL_ROW_HEADER_LENGTH + MODEL_MEAN_ENTRY;
+//    char* mean_str;
+//    for (int i = 0; i < table_length; i++) {
+//        mean_str = (char*) stList_get(tokens, offset + i * MODEL_ENTRY_LENGTH);
+//        sscanf(mean_str, "%lf", &(means[i]));
+//    }
+//    
+//    free(line);
+//    stList_destruct(tokens);
+//    
+//    normal_inverse_gamma_params(means, table_length, mu_out, nu_out, alpha_out, beta_out);
+//    
+//    fclose(model_file);
+//}
+
 void normal_inverse_gamma_params_from_minION(const char* model_filepath, double* mu_out, double* nu_out,
                                              double* alpha_out, double* beta_out) {
     
@@ -139,18 +166,29 @@ void normal_inverse_gamma_params_from_minION(const char* model_filepath, double*
     
     int64_t table_length = (stList_length(tokens) - MODEL_ROW_HEADER_LENGTH) / MODEL_ENTRY_LENGTH;
     double* means = (double*) malloc(sizeof(double) * table_length);
+    double* precisions = (double*) malloc(sizeof(double) * table_length);
     
-    int64_t offset = MODEL_ROW_HEADER_LENGTH + MODEL_MEAN_ENTRY;
+    int64_t mean_offset = MODEL_ROW_HEADER_LENGTH + MODEL_MEAN_ENTRY;
+    int64_t noise_offset = MODEL_ROW_HEADER_LENGTH + MODEL_NOISE_ENTRY;
     char* mean_str;
+    char* noise_str;
+    double noise;
     for (int i = 0; i < table_length; i++) {
-        mean_str = (char*) stList_get(tokens, offset + i * MODEL_ENTRY_LENGTH);
+        mean_str = (char*) stList_get(tokens, mean_offset + i * MODEL_ENTRY_LENGTH);
         sscanf(mean_str, "%lf", &(means[i]));
+        
+        noise_str = (char*) stList_get(tokens, noise_offset + i * MODEL_ENTRY_LENGTH);
+        sscanf(mean_str, "%lf", &noise);
+        precisions[i] = 1.0 / (noise * noise);
     }
     
     free(line);
     stList_destruct(tokens);
     
-    normal_inverse_gamma_params(means, table_length, mu_out, nu_out, alpha_out, beta_out);
+    mle_normal_inverse_gamma_params(means, precisions, table_length, mu_out, nu_out, alpha_out, beta_out);
+    
+    free(means);
+    free(precisions);
     
     fclose(model_file);
 }

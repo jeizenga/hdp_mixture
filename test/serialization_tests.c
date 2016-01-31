@@ -68,18 +68,20 @@ void add_hdp_copy_tests(CuTest* ct, HierarchicalDirichletProcess* original_hdp,
     int64_t original_num_gamma_params;
     double* original_gamma_params;
     double original_log_likelihood;
+    double original_log_density;
     
     int64_t copy_num_dps;
     int64_t* copy_num_dp_fctrs;
     int64_t copy_num_gamma_params;
     double* copy_gamma_params;
     double copy_log_likelihood;
+    double copy_log_density;
     
     take_snapshot(original_hdp, &original_num_dp_fctrs, &original_num_dps, &original_gamma_params,
-                  &original_num_gamma_params, &original_log_likelihood);
+                  &original_num_gamma_params, &original_log_likelihood, &original_log_density);
     
     take_snapshot(copy_hdp, &copy_num_dp_fctrs, &copy_num_dps, &copy_gamma_params,
-                  &copy_num_gamma_params, &copy_log_likelihood);
+                  &copy_num_gamma_params, &copy_log_likelihood, &copy_log_density);
     
     
     CuAssertIntEquals_Msg(ct, "num dps snapshot fail, check output .hdp files",
@@ -99,6 +101,9 @@ void add_hdp_copy_tests(CuTest* ct, HierarchicalDirichletProcess* original_hdp,
     
     CuAssertDblEquals_Msg(ct, "log likelihood fail, check output .hdp files",
                           original_log_likelihood, copy_log_likelihood, 0.000001);
+    
+    CuAssertDblEquals_Msg(ct, "log density fail, check output .hdp files",
+                          original_log_density, copy_log_density, 0.000001);
     
     free(original_num_dp_fctrs);
     free(original_gamma_params);

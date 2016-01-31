@@ -49,7 +49,8 @@ void finalize_distributions(HierarchicalDirichletProcess* hdp);
 double dir_proc_density(HierarchicalDirichletProcess* hdp, double x, int64_t dp_id);
 
 void take_snapshot(HierarchicalDirichletProcess* hdp, int64_t** num_dp_fctrs_out, int64_t* num_dps_out,
-                   double** gamma_params_out, int64_t* num_gamma_params_out, double* log_likelihood_out);
+                   double** gamma_params_out, int64_t* num_gamma_params_out, double* log_likelihood_out,
+                   double* log_density_out);
 
 // get methods
 
