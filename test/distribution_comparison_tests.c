@@ -44,8 +44,12 @@ void add_true_metric_tests(CuTest* ct, DistributionMetricMemo* memo, Hierarchica
                 double dist_ij = get_dir_proc_distance(memo, i, j);
                 double dist_jk = get_dir_proc_distance(memo, j, k);
                 double dist_ik = get_dir_proc_distance(memo, i, k);
-
-                CuAssert(ct, "triangle inequality fail\n", dist_ij + dist_jk >= dist_ik - .0001);
+                
+                bool triangle_ineq = dist_ij + dist_jk >= dist_ik - .0001;
+                if (!triangle_ineq) {
+                    fprintf(stderr, "failed on distances %lf + %lf < %lf\n", dist_ij, dist_jk, dist_ik);
+                }
+                CuAssert(ct, "triangle inequality fail\n", triangle_ineq);
                 
             }
         }
@@ -105,9 +109,9 @@ void test_distr_metrics(CuTest* ct) {
     double alpha = 2.0;
     double beta = 10.0;
     
-    int64_t grid_length = 250;
-    double grid_start = -10.0;
-    double grid_end = 10.0;
+    int64_t grid_length = 500;
+    double grid_start = -30.0;
+    double grid_end = 30.0;
     
     double* gamma_alpha = (double*) malloc(sizeof(double) * depth);
     gamma_alpha[0] = 1.0; gamma_alpha[1] = 1.0; gamma_alpha[2] = 2.0;
@@ -138,15 +142,15 @@ void test_distr_metrics(CuTest* ct) {
     DistributionMetricMemo* memo = new_kl_divergence_memo(hdp);
     add_distr_metric_tests(ct, memo, hdp);
     
-    memo = new_hellinger_distance_memo(hdp);
-    add_distr_metric_tests(ct, memo, hdp);
-    add_true_metric_tests(ct, memo, hdp);
-    
     memo = new_l2_distance_memo(hdp);
     add_distr_metric_tests(ct, memo, hdp);
     add_true_metric_tests(ct, memo, hdp);
     
     memo = new_shannon_jensen_distance_memo(hdp);
+    add_distr_metric_tests(ct, memo, hdp);
+    add_true_metric_tests(ct, memo, hdp);
+    
+    memo = new_hellinger_distance_memo(hdp);
     add_distr_metric_tests(ct, memo, hdp);
     add_true_metric_tests(ct, memo, hdp);
     

@@ -17,13 +17,12 @@
 
 typedef struct Factor Factor;
 typedef struct DirichletProcess DirichletProcess;
-typedef enum FactorType FactorType;
 
-enum FactorType {
+typedef enum FactorType {
     BASE,
     MIDDLE,
     DATA_PT
-};
+} FactorType;
 
 struct Factor {
     FactorType factor_type;
@@ -2486,7 +2485,7 @@ double dir_proc_hellinger_distance(HierarchicalDirichletProcess* hdp, int64_t dp
         left_pt = right_pt;
     }
     
-    return 1.0 - integral;
+    return sqrt(1.0 - integral);
 }
 
 DistributionMetricMemo* new_hellinger_distance_memo(HierarchicalDirichletProcess* hdp) {

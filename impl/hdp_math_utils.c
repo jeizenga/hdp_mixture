@@ -544,7 +544,7 @@ double digamma(double x) {
             y += 1.0 / w;
         }
         y -= EULER_MASCHERONI;
-        goto done;
+        goto digamma_done;
     }
     
     s = x;
@@ -563,7 +563,7 @@ double digamma(double x) {
     
     y = log(s) - (0.5 / s) - y - w;
     
-done:
+digamma_done:
     
     if (negative) {
         y -= nz;
@@ -572,6 +572,7 @@ done:
     return y;
 }
 
+// modified from SciPy source: https://github.com/scipy/scipy/blob/master/scipy/special/cephes/zeta.c
 static double A_zeta[] = {
     12.0,
     -720.0,
@@ -587,10 +588,7 @@ static double A_zeta[] = {
     -7.1661652561756670113e18	/*1.6938241367317436694528e27/236364091 */
 };
 
-/* 30 Nov 86 -- error in third coefficient fixed */
-
-
-double zeta(double x, double q)
+double hurwitz_zeta(double x, double q)
 {
     int i;
     double a, b, k, s, t, w;
@@ -638,7 +636,7 @@ double zeta(double x, double q)
         b = pow(a, -x);
         s += b;
         if (fabs(b / s) < MACHEP)
-            goto done;
+            goto zeta_done;
     }
     
     w = a;
@@ -653,18 +651,18 @@ double zeta(double x, double q)
         s = s + t;
         t = fabs(t / s);
         if (t < MACHEP)
-            goto done;
+            goto zeta_done;
         k += 1.0;
         a *= x + k;
         b /= w;
         k += 1.0;
     }
-done:
+zeta_done:
     return (s);
 }
 
 double trigamma(double x) {
-    return zeta(2.0, x);
+    return hurwitz_zeta(2.0, x);
 }
 
 double newton_approx_alpha(int64_t length, double sum_log_tau, double sum_tau) {
