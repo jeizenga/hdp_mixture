@@ -1846,7 +1846,7 @@ Factor* sample_from_middle_factor(Factor* fctr, DirichletProcess* dp) {
     
     log_probs[num_fctrs] = new_fctr_log_prob;
     
-    double normalizing_const = parallel_max(log_probs, num_choices);
+    double normalizing_const = max(log_probs, num_choices);//parallel_max(log_probs, num_choices);
     
     parallel_add(-normalizing_const, log_probs, num_choices);
     parallel_exp(log_probs, num_choices);
