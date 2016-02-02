@@ -5,6 +5,11 @@
 #include <inttypes.h>
 #include "sonLib.h"
 
+void parallel_cdf(double* cdf, double* probs, int64_t length, int64_t chunk_size);
+double parallel_max(double* x, int64_t length);
+void parallel_add(double add_val, double* x, int64_t length);
+void parallel_exp(double* x, int64_t length);
+
 typedef struct SumOfLogsMemo SumOfLogsMemo;
 
 SumOfLogsMemo* new_log_sum_memo();

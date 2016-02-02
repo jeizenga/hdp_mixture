@@ -9,12 +9,13 @@ LIBDIR:=${ROOTDIR}/lib
 TESTDIR:=${ROOTDIR}/test
 OBJDIR:=${ROOTDIR}/obj
 EXTERNDIR:=${ROOTDIR}/external
-CFLAGS:=-std=c99 -Wall -Wextra -Wpedantic
+CFLAGS:=-std=c99 -Wall -Wextra -Wpedantic -fopenmp
 INC:=-I${INCDIR} -I${SONLIBDIR} -I${EXTERNDIR}
 LINK:=-L${SONLIBDIR} -L${OBJDIR} -lm
 SHELL:=/bin/bash
+CC:=gcc-5.2.0
 
-all: ${OBJDIR}/CuTest.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/rnglib.o ${OBJDIR}/ranlib.o ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/hdp.o ${OBJDIR}/nanopore_hdp.o ${BINDIR}/main ${BINDIR}/utils_tests ${BINDIR}/nanopore_hdp_tests ${BINDIR}/serialization_tests ${BINDIR}/distribution_comparison_tests ${BINDIR}/base_params_tests ${BINDIR}/distr_script
+all: ${OBJDIR}/CuTest.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/rnglib.o ${OBJDIR}/ranlib.o ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/hdp.o ${OBJDIR}/nanopore_hdp.o ${BINDIR}/main ${BINDIR}/utils_tests ${BINDIR}/nanopore_hdp_tests ${BINDIR}/serialization_tests ${BINDIR}/distribution_comparison_tests ${BINDIR}/base_params_tests ${BINDIR}/parallel_tests ${BINDIR}/distr_script
 
 
 ${OBJDIR}/nanopore_hdp.o: ${OBJDIR}/hdp.o
@@ -77,6 +78,12 @@ ${BINDIR}/base_params_tests: ${TESTDIR}/base_params_tests.c ${OBJDIR}/hdp_math_u
 	${CC} ${CFLAGS} ${OBJDIR}/base_params_tests.o ${OBJDIR}/hdp_math_utils.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/CuTest.o ${INC} ${LINK} -o ${BINDIR}/base_params_tests
 	chmod +x ${BINDIR}/base_params_tests
 	rm ${OBJDIR}/base_params_tests.o	
+
+${BINDIR}/parallel_tests: ${TESTDIR}/parallel_tests.c ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/CuTest.o ${SONLIBDIR}/sonLib.a
+	${CC} ${CFLAGS} -c ${TESTDIR}/parallel_tests.c ${INC} -o ${OBJDIR}/parallel_tests.o
+	${CC} ${CFLAGS} ${OBJDIR}/parallel_tests.o ${OBJDIR}/hdp_math_utils.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/CuTest.o ${INC} ${LINK} -o ${BINDIR}/parallel_tests
+	chmod +x ${BINDIR}/parallel_tests
+	rm ${OBJDIR}/parallel_tests.o	
 
 ${BINDIR}/distr_script: ${TESTDIR}/distr_script.c ${OBJDIR}/nanopore_hdp.o ${OBJDIR}/hdp_math_utils.o
 	${CC} ${CFLAGS} -c ${TESTDIR}/distr_script.c ${INC} -o ${OBJDIR}/distr_script.o

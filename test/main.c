@@ -191,80 +191,31 @@ int main(int argc, char* argv[]) {
         srand(atoi(argv[1]));
     }
 	
-//    // the Dirichlet processes are the numbered boxes
-//    int64_t num_dir_proc = 8;
-//    // the depth of the tree
-//    int64_t depth = 3;
-//
-//    // parameters of the normal inverse gamma  base distribution
-//    double mu = 0.0;
-//    double nu = 1.0;
-//    double alpha = 2.0; // note: this parameter must be integer or half-integer valued
-//    double beta = 10.0;
-//
-//    // the grid along which the HDP will record distribution samples
-//    int64_t grid_length = 250;
-//    double grid_start = -10.0;
-//    double grid_end = 10.0;
-//
-//    // initialize an HDP
-//    fprintf(stderr, "Initializing HDP...\n");
-//    
-//    // choose whether to pre-define concentration parameters (gamma and alpha_0 in Teh et al)
-//    // or sample them from a Gamma distribution
-//    
-//    // pre-define the concentration parameters at each depth
-//    double* gamma = (double*) malloc(sizeof(double) * depth);
-//    gamma[0] = 10.0; gamma[1] = 10.0; gamma[2] = 10.0;
-//    HierarchicalDirichletProcess* hdp = new_hier_dir_proc(num_dir_proc, depth, gamma,
-//                                                          grid_start, grid_end, grid_length,
-//                                                          mu, nu, alpha, beta);
-//    
-//    
-//    // parameters for distributions of concentration parameters at each depth
-////    double* gamma_alpha = (double*) malloc(sizeof(double) * depth);
-////    gamma_alpha[0] = 1.0; gamma_alpha[1] = 1.0; gamma_alpha[2] = 2.0;
-////    double* gamma_beta = (double*) malloc(sizeof(double) * depth);
-////    gamma_beta[0] = 0.2; gamma_beta[1] = 0.2; gamma_beta[2] = 0.1;
-////    HierarchicalDirichletProcess* hdp = new_hier_dir_proc_2(num_dir_proc, depth, gamma_alpha,
-////                                                            gamma_beta, grid_start, grid_end,
-////                                                            grid_length, mu, nu, alpha, beta);
-//    
-//    // establish the topology of the tree
-//    fprintf(stderr, "Establishing HDP tree topology...\n");
-//    set_dir_proc_parent(hdp, 1, 0);
-//    set_dir_proc_parent(hdp, 2, 0);
-//    set_dir_proc_parent(hdp, 3, 1);
-//    set_dir_proc_parent(hdp, 4, 1);
-//    set_dir_proc_parent(hdp, 5, 1);
-//    set_dir_proc_parent(hdp, 6, 2);
-//    set_dir_proc_parent(hdp, 7, 2);
-    
     // the Dirichlet processes are the numbered boxes
-    int64_t num_dir_proc = 21;
+    int64_t num_dir_proc = 8;
     // the depth of the tree
-    int64_t depth = 2;
-    
+    int64_t depth = 3;
+
     // parameters of the normal inverse gamma  base distribution
     double mu = 0.0;
     double nu = 1.0;
-    double alpha = 1.5; // note: this parameter must be integer or half-integer valued
+    double alpha = 2.0; // note: this parameter must be integer or half-integer valued
     double beta = 10.0;
-    
+
     // the grid along which the HDP will record distribution samples
     int64_t grid_length = 250;
     double grid_start = -10.0;
     double grid_end = 10.0;
-    
+
     // initialize an HDP
     fprintf(stderr, "Initializing HDP...\n");
     
     // choose whether to pre-define concentration parameters (gamma and alpha_0 in Teh et al)
     // or sample them from a Gamma distribution
     
-    //    // pre-define the concentration parameters at each depth
+    // pre-define the concentration parameters at each depth
     double* gamma = (double*) malloc(sizeof(double) * depth);
-    gamma[0] = 20.0; gamma[1] = 5.0;
+    gamma[0] = 10.0; gamma[1] = 10.0; gamma[2] = 10.0;
     HierarchicalDirichletProcess* hdp = new_hier_dir_proc(num_dir_proc, depth, gamma,
                                                           grid_start, grid_end, grid_length,
                                                           mu, nu, alpha, beta);
@@ -281,9 +232,58 @@ int main(int argc, char* argv[]) {
     
     // establish the topology of the tree
     fprintf(stderr, "Establishing HDP tree topology...\n");
-    for (int64_t dp_id = 0; dp_id < 20; dp_id++) {
-        set_dir_proc_parent(hdp, dp_id, 20);
-    }
+    set_dir_proc_parent(hdp, 1, 0);
+    set_dir_proc_parent(hdp, 2, 0);
+    set_dir_proc_parent(hdp, 3, 1);
+    set_dir_proc_parent(hdp, 4, 1);
+    set_dir_proc_parent(hdp, 5, 1);
+    set_dir_proc_parent(hdp, 6, 2);
+    set_dir_proc_parent(hdp, 7, 2);
+    
+//    // the Dirichlet processes are the numbered boxes
+//    int64_t num_dir_proc = 21;
+//    // the depth of the tree
+//    int64_t depth = 2;
+//    
+//    // parameters of the normal inverse gamma  base distribution
+//    double mu = 0.0;
+//    double nu = 1.0;
+//    double alpha = 1.5; // note: this parameter must be integer or half-integer valued
+//    double beta = 10.0;
+//    
+//    // the grid along which the HDP will record distribution samples
+//    int64_t grid_length = 250;
+//    double grid_start = -10.0;
+//    double grid_end = 10.0;
+//    
+//    // initialize an HDP
+//    fprintf(stderr, "Initializing HDP...\n");
+//    
+//    // choose whether to pre-define concentration parameters (gamma and alpha_0 in Teh et al)
+//    // or sample them from a Gamma distribution
+//    
+//    //    // pre-define the concentration parameters at each depth
+//    double* gamma = (double*) malloc(sizeof(double) * depth);
+//    gamma[0] = 20.0; gamma[1] = 5.0;
+//    HierarchicalDirichletProcess* hdp = new_hier_dir_proc(num_dir_proc, depth, gamma,
+//                                                          grid_start, grid_end, grid_length,
+//                                                          mu, nu, alpha, beta);
+//    
+//    
+//    // parameters for distributions of concentration parameters at each depth
+////    double* gamma_alpha = (double*) malloc(sizeof(double) * depth);
+////    gamma_alpha[0] = 1.0; gamma_alpha[1] = 1.0; gamma_alpha[2] = 2.0;
+////    double* gamma_beta = (double*) malloc(sizeof(double) * depth);
+////    gamma_beta[0] = 0.2; gamma_beta[1] = 0.2; gamma_beta[2] = 0.1;
+////    HierarchicalDirichletProcess* hdp = new_hier_dir_proc_2(num_dir_proc, depth, gamma_alpha,
+////                                                            gamma_beta, grid_start, grid_end,
+////                                                            grid_length, mu, nu, alpha, beta);
+//    
+//    // establish the topology of the tree
+//    fprintf(stderr, "Establishing HDP tree topology...\n");
+//    for (int64_t dp_id = 0; dp_id < 20; dp_id++) {
+//        set_dir_proc_parent(hdp, dp_id, 20);
+//    }
     
     // note: the result must be a perfectly balanced tree (same depth at every leaf)
     // or you will get an error here
