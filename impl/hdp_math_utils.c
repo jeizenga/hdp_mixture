@@ -124,10 +124,20 @@ void parallel_cdf(double* cdf, double* probs, int64_t length, int64_t chunk_size
 
 double parallel_max(double* x, int64_t length) {
     double max_val = MINUS_INF;
-    #pragma omp parallel for reduction(max:max_val)
-    for (int64_t i = 0; i < length; i++) {
-        if (x[i] > max_val) {
-            max_val = x[i];
+    #pragma omp parallel shared(max_val)
+    {
+        double local_max = MINUS_INF;
+        #pragma omp for nowait
+        for (int64_t i = 0; i < length; i++) {
+            if (x[i] > local_max) {
+                local_max = x[i];
+            }
+        }
+        #pragma omp critical
+        {
+            if (local_max > max_val) {
+                max_val = local_max;
+            }
         }
     }
     return max_val;

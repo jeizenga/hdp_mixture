@@ -18,6 +18,8 @@
 #define M_PI 3.14159265358979323846264338
 #endif
 
+//#define UNOBS_CHUNK 10
+
 typedef struct Factor Factor;
 typedef struct DirichletProcess DirichletProcess;
 
@@ -637,6 +639,7 @@ double prior_joint_log_likelihood(HierarchicalDirichletProcess* hdp, Factor* fct
     return log_alpha_term + log_nu_term - log_pi_term + 0.5 * (log_beta_term_1 - log_beta_term_2);
 }
 
+// TODO: figure out how to break into chunks and spin up threads to reduce the sum behind the iterator
 double unobserved_factor_likelihood(Factor* fctr, DirichletProcess* dp) {
     DirichletProcess* parent_dp = dp->parent;
     if (parent_dp == NULL) {
@@ -645,24 +648,73 @@ double unobserved_factor_likelihood(Factor* fctr, DirichletProcess* dp) {
     else {
         double parent_gamma = *(parent_dp->gamma);
         double likelihood = 0.0;
+        double next_height_unobs_likelihood;
+        int64_t num_parent_fctrs = stSet_size(parent_dp->factors);
+        Factor** parent_fctrs = (Factor**) malloc(sizeof(Factor*) * num_parent_fctrs);
         
-        stSetIterator* parent_fctr_iter = stSet_getIterator(parent_dp->factors);
-        Factor* parent_fctr = (Factor*) stSet_getNext(parent_fctr_iter);
-        double fctr_size;
-        while (parent_fctr != NULL) {
-            fctr_size = (double) stSet_size(parent_fctr->children);
-            likelihood += fctr_size * data_pt_factor_parent_likelihood(fctr, parent_fctr);
-            parent_fctr = (Factor*) stSet_getNext(parent_fctr_iter);
+        #pragma omp parallel shared(likelihood,next_height_unobs_likelihood,parent_dp,num_parent_fctrs,parent_fctrs)
+        {
+            #pragma omp single nowait
+            next_height_unobs_likelihood = unobserved_factor_likelihood(fctr, parent_dp);
+            
+             #pragma omp single
+            {
+                stSetIterator* parent_fctr_iter = stSet_getIterator(parent_dp->factors);
+                for (int64_t i = 0; i < num_parent_fctrs; i++) {
+                    parent_fctrs[i] = (Factor*) stSet_getNext(parent_fctr_iter);
+                }
+                stSet_destructIterator(parent_fctr_iter);
+            }
+            
+            double local_likelihood = 0.0;
+            Factor* parent_fctr;
+            #pragma omp for nowait
+            for (int64_t i = 0; i < num_parent_fctrs; i++) {
+                parent_fctr = parent_fctrs[i];
+                local_likelihood += stSet_size(parent_fctr->children) * data_pt_factor_parent_likelihood(fctr, parent_fctr);
+            }
+            
+            #pragma omp critical
+            likelihood += local_likelihood;
         }
-        stSet_destructIterator(parent_fctr_iter);
+        free(parent_fctrs);
         
-        likelihood += parent_gamma * unobserved_factor_likelihood(fctr, parent_dp);
+        likelihood += parent_gamma * next_height_unobs_likelihood;
         
         likelihood /= (parent_gamma + (double) parent_dp->num_factor_children);
         
         return likelihood;
     }
 }
+
+//double unobserved_factor_likelihood(Factor* fctr, DirichletProcess* dp) {
+//    DirichletProcess* parent_dp = dp->parent;
+//    if (parent_dp == NULL) {
+//        return prior_likelihood(dp->hdp, fctr);
+//    }
+//    else {
+//        double parent_gamma = *(parent_dp->gamma);
+//        double likelihood = 0.0;
+//        
+//        stSetIterator* parent_fctr_iter = stSet_getIterator(parent_dp->factors);
+//        
+//        Factor* parent_fctr = (Factor*) stSet_getNext(parent_fctr_iter);
+//        double fctr_size;
+//        while (parent_fctr != NULL) {
+//            fctr_size = (double) stSet_size(parent_fctr->children);
+//            likelihood += fctr_size * data_pt_factor_parent_likelihood(fctr, parent_fctr);
+//            parent_fctr = (Factor*) stSet_getNext(parent_fctr_iter);
+//        }
+//        stSet_destructIterator(parent_fctr_iter);
+//        
+//        likelihood += parent_gamma * unobserved_factor_likelihood(fctr, parent_dp);
+//        
+//        likelihood /= (parent_gamma + (double) parent_dp->num_factor_children);
+//        
+//        return likelihood;
+//    }
+//}
+
 
 double unobserved_factor_joint_log_likelihood(Factor* fctr, DirichletProcess* dp) {
     DirichletProcess* parent_dp = dp->parent;
@@ -671,27 +723,79 @@ double unobserved_factor_joint_log_likelihood(Factor* fctr, DirichletProcess* dp
     }
     else {
         double parent_gamma = *(parent_dp->gamma);
-        
         double log_likelihood = MINUS_INF;
-        stSetIterator* parent_fctr_iter = stSet_getIterator(parent_dp->factors);
-        Factor* parent_fctr = (Factor*) stSet_getNext(parent_fctr_iter);
-        double log_fctr_size;
-        while (parent_fctr != NULL) {
-            log_fctr_size = log((double) stSet_size(parent_fctr->children));
-            log_likelihood = add_logs(log_likelihood,
-                                      log_fctr_size + factor_parent_joint_log_likelihood(fctr, parent_fctr));
-            parent_fctr = (Factor*) stSet_getNext(parent_fctr_iter);
+        double next_height_unobs_log_likelihood;
+        int64_t num_parent_fctrs = stSet_size(parent_dp->factors);
+        Factor** parent_fctrs = (Factor**) malloc(sizeof(Factor*) * num_parent_fctrs);
+        
+        #pragma omp parallel shared(log_likelihood,next_height_unobs_log_likelihood,parent_dp,num_parent_fctrs,parent_fctrs)
+        {
+            #pragma omp single nowait
+            next_height_unobs_log_likelihood = unobserved_factor_joint_log_likelihood(fctr, parent_dp);
+            
+            #pragma omp single
+            {
+                stSetIterator* parent_fctr_iter = stSet_getIterator(parent_dp->factors);
+                for (int64_t i = 0; i < num_parent_fctrs; i++) {
+                    parent_fctrs[i] = (Factor*) stSet_getNext(parent_fctr_iter);
+                }
+                stSet_destructIterator(parent_fctr_iter);
+            }
+            
+            double local_log_likelihood = MINUS_INF;
+            double log_fctr_size;
+            Factor* parent_fctr;
+            
+            #pragma omp for nowait
+            for (int64_t i = 0; i < num_parent_fctrs; i++) {
+                parent_fctr = parent_fctrs[i];
+                log_fctr_size = log(stSet_size(parent_fctr->children));
+                local_log_likelihood = add_logs(local_log_likelihood,
+                                                log_fctr_size + factor_parent_joint_log_likelihood(fctr, parent_fctr));
+            }
+            
+            #pragma omp critical
+            log_likelihood = add_logs(log_likelihood, local_log_likelihood);
         }
-        stSet_destructIterator(parent_fctr_iter);
+        free(parent_fctrs);
         
         log_likelihood = add_logs(log_likelihood,
-                                  log(parent_gamma) + unobserved_factor_joint_log_likelihood(fctr, parent_dp));
+                                  log(parent_gamma) + next_height_unobs_log_likelihood);
         
-        log_likelihood -= log(parent_gamma + (double) parent_dp->num_factor_children);
+        log_likelihood -= log(parent_gamma + parent_dp->num_factor_children);
         
         return log_likelihood;
     }
 }
+
+//double unobserved_factor_joint_log_likelihood(Factor* fctr, DirichletProcess* dp) {
+//    DirichletProcess* parent_dp = dp->parent;
+//    if (parent_dp == NULL) {
+//        return prior_joint_log_likelihood(dp->hdp, fctr);
+//    }
+//    else {
+//        double parent_gamma = *(parent_dp->gamma);
+//        
+//        double log_likelihood = MINUS_INF;
+//        stSetIterator* parent_fctr_iter = stSet_getIterator(parent_dp->factors);
+//        Factor* parent_fctr = (Factor*) stSet_getNext(parent_fctr_iter);
+//        double log_fctr_size;
+//        while (parent_fctr != NULL) {
+//            log_fctr_size = log((double) stSet_size(parent_fctr->children));
+//            log_likelihood = add_logs(log_likelihood,
+//                                      log_fctr_size + factor_parent_joint_log_likelihood(fctr, parent_fctr));
+//            parent_fctr = (Factor*) stSet_getNext(parent_fctr_iter);
+//        }
+//        stSet_destructIterator(parent_fctr_iter);
+//        
+//        log_likelihood = add_logs(log_likelihood,
+//                                  log(parent_gamma) + unobserved_factor_joint_log_likelihood(fctr, parent_dp));
+//        
+//        log_likelihood -= log(parent_gamma + (double) parent_dp->num_factor_children);
+//        
+//        return log_likelihood;
+//    }
+//}
 
 DirichletProcess* new_dir_proc() {
     DirichletProcess* dp = (DirichletProcess*) malloc(sizeof(DirichletProcess));
@@ -1689,7 +1793,6 @@ Factor* sample_from_data_pt_factor(Factor* fctr, DirichletProcess* dp) {
     
     Factor** fctr_order = (Factor**) malloc(sizeof(Factor*) * num_fctrs);
 
-    double* probs = (double*) malloc(sizeof(double) * num_fctrs);
 
     stSetIterator* pool_iter = stSet_getIterator(pool);
     for (int64_t i = 0; i < num_fctrs; i++) {
@@ -1698,23 +1801,17 @@ Factor* sample_from_data_pt_factor(Factor* fctr, DirichletProcess* dp) {
     }
     stSet_destructIterator(pool_iter);
     
+    double* probs = (double*) malloc(sizeof(double) * num_fctrs);
     double new_fctr_prob;
-    #pragma omp parallel shared(new_fctr_prob)
+    #pragma omp parallel shared(new_fctr_prob,probs)
     {
-        #pragma omp sections
-        {
-            #pragma omp section
-            {
-                new_fctr_prob = (*(dp->gamma)) * unobserved_factor_likelihood(fctr, dp);
-            }
-            #pragma omp section
-            {
-                //#pragma omp for
-                for (int64_t i = 0; i < num_fctrs; i++) {
-                    Factor* fctr_option = fctr_order[i];
-                    probs[i] = stSet_size(fctr_option->children) * data_pt_factor_parent_likelihood(fctr, fctr_option);
-                }
-            }
+        #pragma omp single nowait 
+        new_fctr_prob = (*(dp->gamma)) * unobserved_factor_likelihood(fctr, dp);
+
+        #pragma omp for
+        for (int64_t i = 0; i < num_fctrs; i++) {
+            Factor* fctr_option = fctr_order[i];
+            probs[i] = stSet_size(fctr_option->children) * data_pt_factor_parent_likelihood(fctr, fctr_option);
         }
     }
     
@@ -1825,25 +1922,19 @@ Factor* sample_from_middle_factor(Factor* fctr, DirichletProcess* dp) {
     stSet_destructIterator(pool_iter);
     
     double new_fctr_log_prob;
-#pragma omp parallel shared(new_fctr_log_prob)
+    #pragma omp parallel shared(new_fctr_log_prob,log_probs)
     {
-#pragma omp sections
-        {
-#pragma omp section
-            {
-                for (int64_t i = 0; i < num_fctrs; i++) {
-                    Factor* fctr_option = fctr_order[i];
-                    log_probs[i] = log((double) stSet_size(fctr_option->children))
-                                    + factor_parent_joint_log_likelihood(fctr, fctr_option);
-                }
-            }
-#pragma omp section
-            {
-                new_fctr_log_prob = log(*(dp->gamma)) + unobserved_factor_joint_log_likelihood(fctr, dp);
-            }
+        #pragma omp single nowait
+        new_fctr_log_prob = log(*(dp->gamma)) + unobserved_factor_joint_log_likelihood(fctr, dp);
+        
+        #pragma omp for
+        for (int64_t i = 0; i < num_fctrs; i++) {
+        Factor* fctr_option = fctr_order[i];
+        log_probs[i] = log((double) stSet_size(fctr_option->children))
+                       + factor_parent_joint_log_likelihood(fctr, fctr_option);
         }
     }
-    
+
     log_probs[num_fctrs] = new_fctr_log_prob;
     
     double normalizing_const = parallel_max(log_probs, num_choices);
