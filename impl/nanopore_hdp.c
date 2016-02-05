@@ -130,32 +130,6 @@ void finalize_nhdp_distributions(NanoporeHDP* nhdp) {
     finalize_distributions(nhdp->hdp);
 }
 
-//void normal_inverse_gamma_params_from_minION(const char* model_filepath, double* mu_out, double* nu_out,
-//                                             double* alpha_out, double* beta_out) {
-//    
-//    FILE* model_file = fopen(model_filepath, "r");
-//    
-//    char* line = stFile_getLineFromFile(model_file);
-//    stList* tokens = stString_split(line);
-//    
-//    int64_t table_length = (stList_length(tokens) - MODEL_ROW_HEADER_LENGTH) / MODEL_ENTRY_LENGTH;
-//    double* means = (double*) malloc(sizeof(double) * table_length);
-//    
-//    int64_t offset = MODEL_ROW_HEADER_LENGTH + MODEL_MEAN_ENTRY;
-//    char* mean_str;
-//    for (int i = 0; i < table_length; i++) {
-//        mean_str = (char*) stList_get(tokens, offset + i * MODEL_ENTRY_LENGTH);
-//        sscanf(mean_str, "%lf", &(means[i]));
-//    }
-//    
-//    free(line);
-//    stList_destruct(tokens);
-//    
-//    normal_inverse_gamma_params(means, table_length, mu_out, nu_out, alpha_out, beta_out);
-//    
-//    fclose(model_file);
-//}
-
 void normal_inverse_gamma_params_from_minION(const char* model_filepath, double* mu_out, double* nu_out,
                                              double* alpha_out, double* beta_out) {
     
@@ -452,6 +426,32 @@ NanoporeDistributionMetricMemo* new_nhdp_l2_distance_memo(NanoporeHDP* nhdp) {
 
 NanoporeDistributionMetricMemo* new_nhdp_shannon_jensen_distance_memo(NanoporeHDP* nhdp) {
     return package_nanopore_metric_memo(nhdp, new_shannon_jensen_distance_memo(nhdp->hdp));
+}
+
+double compare_nhdp_distrs_kl_divergence(NanoporeHDP* nhdp_1, char* kmer_1,
+                                         NanoporeHDP* nhdp_2, char* kmer_2) {
+    return compare_hdp_distrs_kl_divergence(nhdp_1->hdp, nhdp_kmer_id(nhdp_1, kmer_1),
+                                            nhdp_2->hdp, nhdp_kmer_id(nhdp_2, kmer_2));
+}
+
+double compare_nhdp_distrs_l2_distance(NanoporeHDP* nhdp_1, char* kmer_1,
+                                       NanoporeHDP* nhdp_2, char* kmer_2) {
+    return compare_hdp_distrs_l2_distance(nhdp_1->hdp, nhdp_kmer_id(nhdp_1, kmer_1),
+                                          nhdp_2->hdp, nhdp_kmer_id(nhdp_2, kmer_2));
+}
+
+
+double compare_nhdp_distrs_shannon_jensen_distance(NanoporeHDP* nhdp_1, char* kmer_1,
+                                                   NanoporeHDP* nhdp_2, char* kmer_2) {
+    return compare_hdp_distrs_shannon_jensen_distance(nhdp_1->hdp, nhdp_kmer_id(nhdp_1, kmer_1),
+                                                      nhdp_2->hdp, nhdp_kmer_id(nhdp_2, kmer_2));
+}
+
+
+double compare_nhdp_distrs_hellinger_distance(NanoporeHDP* nhdp_1, char* kmer_1,
+                                              NanoporeHDP* nhdp_2, char* kmer_2) {
+    return compare_hdp_distrs_hellinger_distance(nhdp_1->hdp, nhdp_kmer_id(nhdp_1, kmer_1),
+                                                 nhdp_2->hdp, nhdp_kmer_id(nhdp_2, kmer_2));
 }
 
 int64_t flat_hdp_num_dps(int64_t alphabet_size, int64_t kmer_length) {

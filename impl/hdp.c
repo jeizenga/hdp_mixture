@@ -18,7 +18,6 @@
 #define M_PI 3.14159265358979323846264338
 #endif
 
-//#define UNOBS_CHUNK 10
 
 typedef struct Factor Factor;
 typedef struct DirichletProcess DirichletProcess;
@@ -724,10 +723,10 @@ double unobserved_factor_joint_log_likelihood(Factor* fctr, DirichletProcess* dp
     else {
         double parent_gamma = *(parent_dp->gamma);
         double log_likelihood = MINUS_INF;
-        double next_height_unobs_log_likelihood;
         int64_t num_parent_fctrs = stSet_size(parent_dp->factors);
         Factor** parent_fctrs = (Factor**) malloc(sizeof(Factor*) * num_parent_fctrs);
         
+        double next_height_unobs_log_likelihood;
         #pragma omp parallel shared(log_likelihood,next_height_unobs_log_likelihood,parent_dp,num_parent_fctrs,parent_fctrs)
         {
             #pragma omp single nowait
@@ -1807,10 +1806,11 @@ Factor* sample_from_data_pt_factor(Factor* fctr, DirichletProcess* dp) {
     {
         #pragma omp single nowait 
         new_fctr_prob = (*(dp->gamma)) * unobserved_factor_likelihood(fctr, dp);
-
+        
+        Factor* fctr_option;
         #pragma omp for
         for (int64_t i = 0; i < num_fctrs; i++) {
-            Factor* fctr_option = fctr_order[i];
+            fctr_option = fctr_order[i];
             probs[i] = stSet_size(fctr_option->children) * data_pt_factor_parent_likelihood(fctr, fctr_option);
         }
     }
@@ -2600,6 +2600,228 @@ double dir_proc_density(HierarchicalDirichletProcess* hdp, double x, int64_t dp_
     }
 }
 
+double get_dir_proc_distance(DistributionMetricMemo* memo, int64_t dp_id_1, int64_t dp_id_2) {
+    int64_t num_dps = memo->num_distrs;
+    if (dp_id_1 < 0 || dp_id_2 < 0 || dp_id_1 >= num_dps || dp_id_2 >= num_dps) {
+        fprintf(stderr, "Invalid Dirchlet process ID.\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    if (dp_id_1 == dp_id_2) {
+        return 0.0;
+    }
+    
+    if (dp_id_1 < dp_id_2) {
+        return get_dir_proc_distance(memo, dp_id_2, dp_id_1);
+    }
+    
+    int64_t idx = ((dp_id_1 - 1) * dp_id_1) / 2 + dp_id_2;
+    double* matrix = memo->memo_matrix;
+    if (matrix[idx] < 0) {
+        matrix[idx] = memo->metric_func(memo->hdp, dp_id_1, dp_id_2);
+    }
+    
+    return matrix[idx];
+}
+
+
+
+double dir_proc_distance(HierarchicalDirichletProcess* hdp, int64_t dp_id_1, int64_t dp_id_2,
+                         double (*dist_func)(double*, double*, double*, int64_t)) {
+    if (!hdp->splines_finalized) {
+        fprintf(stderr, "Cannot compute a Shannon-Jensen divergence before finalizing distributions.\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    int64_t grid_length = hdp->grid_length;
+    double* grid = hdp->sampling_grid;
+    
+    
+    DirichletProcess* dp_1 = hdp->dps[dp_id_1];
+    DirichletProcess* dp_2 = hdp->dps[dp_id_2];
+    while (!dp_1->observed) {
+        dp_1 = dp_1->parent;
+    }
+    while (!dp_2->observed) {
+        dp_2 = dp_2->parent;
+    }
+    
+    double* distr_1 = dp_1->posterior_predictive;
+    double* distr_2 = dp_2->posterior_predictive;
+    
+    return dist_func(grid, distr_1, distr_2, grid_length);
+}
+
+double kl_divergence(double* x, double* distr_1, double* distr_2, int64_t length) {
+
+    double divergence = 0.0;
+    double left_pt = distr_1[0] * log(distr_1[0] / distr_2[0]) + distr_2[0] * log(distr_2[0] / distr_1[0]);
+    double right_pt;
+    double dx;
+    for (int64_t i = 1; i < length; i++) {
+        right_pt = distr_1[i] * log(distr_1[i] / distr_2[i]) + distr_2[i] * log(distr_2[i] / distr_1[i]);
+        
+        dx = x[i] - x[i - 1];
+        
+        divergence += 0.5 * (left_pt + right_pt) * dx;
+        
+        left_pt = right_pt;
+    }
+    
+    return divergence;
+}
+
+double dir_proc_kl_divergence(HierarchicalDirichletProcess* hdp, int64_t dp_id_1, int64_t dp_id_2) {
+    return dir_proc_distance(hdp, dp_id_1, dp_id_2, &kl_divergence);
+}
+
+DistributionMetricMemo* new_kl_divergence_memo(HierarchicalDirichletProcess* hdp) {
+    return new_distr_metric_memo(hdp, &dir_proc_kl_divergence);
+}
+
+double hellinger_distance(double* x, double* distr_1, double* distr_2, int64_t length) {
+
+    double integral = 0.0;
+    double left_pt = sqrt(distr_1[0] * distr_2[0]);
+    double right_pt;
+    double dx;
+    for (int64_t i = 1; i < length; i++) {
+        right_pt = sqrt(distr_1[i] * distr_2[i]);
+        
+        dx = x[i] - x[i - 1];
+        
+        integral += 0.5 * (left_pt + right_pt) * dx;
+        
+        left_pt = right_pt;
+    }
+    
+    return sqrt(1.0 - integral);
+}
+
+double dir_proc_hellinger_distance(HierarchicalDirichletProcess* hdp, int64_t dp_id_1, int64_t dp_id_2) {
+    return dir_proc_distance(hdp, dp_id_1, dp_id_2, &hellinger_distance);
+}
+
+DistributionMetricMemo* new_hellinger_distance_memo(HierarchicalDirichletProcess* hdp) {
+    return new_distr_metric_memo(hdp, &dir_proc_hellinger_distance);
+}
+
+double l2_distance(double* x, double* distr_1, double* distr_2, int64_t length) {
+    double integral = 0.0;
+    double diff = distr_1[0] - distr_2[0];
+    double left_pt = diff * diff;
+    double right_pt;
+    double dx;
+    for (int64_t i = 1; i < length; i++) {
+        diff = distr_1[i] - distr_2[i];
+        right_pt = diff * diff;
+        
+        dx = x[i] - x[i - 1];
+        
+        integral += 0.5 * (left_pt + right_pt) * dx;
+        
+        left_pt = right_pt;
+    }
+    
+    return sqrt(integral);
+}
+    
+double dir_proc_l2_distance(HierarchicalDirichletProcess* hdp, int64_t dp_id_1, int64_t dp_id_2) {
+    return dir_proc_distance(hdp, dp_id_1, dp_id_2, &l2_distance);
+}
+
+DistributionMetricMemo* new_l2_distance_memo(HierarchicalDirichletProcess* hdp) {
+    return new_distr_metric_memo(hdp, &dir_proc_l2_distance);
+}
+
+double shannon_jensen_distance(double* x, double* distr_1, double* distr_2, int64_t length) {
+    double divergence = 0.0;
+    
+    double mean_distr_pt = 0.5 * (distr_1[0] + distr_2[0]);
+    double left_pt = 0.5 * (distr_1[0] * log(distr_1[0] / mean_distr_pt) + distr_2[0] * log(distr_2[0] / mean_distr_pt));
+    double right_pt;
+    double dx;
+    for (int64_t i = 1; i < length; i++) {
+        mean_distr_pt = 0.5 * (distr_1[i] + distr_2[i]);
+        right_pt = 0.5 * (distr_1[i] * log(distr_1[i] / mean_distr_pt) + distr_2[i] * log(distr_2[i] / mean_distr_pt));
+        
+        dx = x[i] - x[i - 1];
+        
+        divergence += 0.5 * (left_pt + right_pt) * dx;
+        
+        left_pt = right_pt;
+    }
+    
+    return sqrt(divergence);
+}
+
+double dir_proc_shannon_jensen_distance(HierarchicalDirichletProcess* hdp, int64_t dp_id_1, int64_t dp_id_2) {
+    return dir_proc_distance(hdp, dp_id_1, dp_id_2, &shannon_jensen_distance);
+}
+
+DistributionMetricMemo* new_shannon_jensen_distance_memo(HierarchicalDirichletProcess* hdp) {
+    return new_distr_metric_memo(hdp, &dir_proc_shannon_jensen_distance);
+}
+
+double compare_hdp_distrs(HierarchicalDirichletProcess* hdp_1, int64_t dp_id_1, // this HDP is the master for grid samples
+                          HierarchicalDirichletProcess* hdp_2, int64_t dp_id_2,
+                          double (*dist_func)(double*, double*, double*, int64_t)) {
+    
+    if (!hdp_1->splines_finalized || !hdp_2->splines_finalized) {
+        fprintf(stderr, "Must finalize distributions of both hierarchical Dirichelt processes before comparing.\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    int64_t num_dps_1 = hdp_1->num_dps;
+    int64_t num_dps_2 = hdp_2->num_dps;
+    if (dp_id_1 < 0 || dp_id_2 < 0 || dp_id_1 >= num_dps_1 || dp_id_2 >= num_dps_2) {
+        fprintf(stderr, "Invalid Dirchlet process ID.\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    double* grid = hdp_1->sampling_grid;
+    int64_t grid_length = hdp_1->grid_length;
+    
+    DirichletProcess* dp_1 = hdp_1->dps[dp_id_1];
+    while (!dp_1->observed) {
+        dp_1 = dp_1->parent;
+    }
+    
+    double* distr_1 = dp_1->posterior_predictive;
+    
+    double* distr_2 = (double*) malloc(sizeof(double) * grid_length);
+    
+    for (int64_t i = 0; i < grid_length; i++) {
+        distr_2[i] = dir_proc_density(hdp_2, grid[i], dp_id_2);
+    }
+    
+    return dist_func(grid, distr_1, distr_2, grid_length);
+}
+
+double compare_hdp_distrs_kl_divergence(HierarchicalDirichletProcess* hdp_1, int64_t dp_id_1,
+                                        HierarchicalDirichletProcess* hdp_2, int64_t dp_id_2) {
+    
+    return compare_hdp_distrs(hdp_1, dp_id_1, hdp_2, dp_id_2, &kl_divergence);
+}
+
+double compare_hdp_distrs_l2_distance(HierarchicalDirichletProcess* hdp_1, int64_t dp_id_1,
+                                        HierarchicalDirichletProcess* hdp_2, int64_t dp_id_2) {
+    
+    return compare_hdp_distrs(hdp_1, dp_id_1, hdp_2, dp_id_2, &l2_distance);
+}
+
+double compare_hdp_distrs_shannon_jensen_distance(HierarchicalDirichletProcess* hdp_1, int64_t dp_id_1,
+                                        HierarchicalDirichletProcess* hdp_2, int64_t dp_id_2) {
+    
+    return compare_hdp_distrs(hdp_1, dp_id_1, hdp_2, dp_id_2, &shannon_jensen_distance);
+}
+
+double compare_hdp_distrs_hellinger_distance(HierarchicalDirichletProcess* hdp_1, int64_t dp_id_1,
+                                        HierarchicalDirichletProcess* hdp_2, int64_t dp_id_2) {
+    
+    return compare_hdp_distrs(hdp_1, dp_id_1, hdp_2, dp_id_2, &hellinger_distance);
+}
+
 void serialize_factor_tree_internal(FILE* out, Factor* fctr, int64_t parent_id, int64_t* next_fctr_id, uintptr_t data_start) {
     int64_t id = *next_fctr_id;
     (*next_fctr_id)++;
@@ -2650,206 +2872,6 @@ void serialize_factor_tree_internal(FILE* out, Factor* fctr, int64_t parent_id, 
         stSet_destructIterator(iter);
     }
 }
-
-double get_dir_proc_distance(DistributionMetricMemo* memo, int64_t dp_id_1, int64_t dp_id_2) {
-    int64_t num_dps = memo->num_distrs;
-    if (dp_id_1 < 0 || dp_id_2 < 0 || dp_id_1 >= num_dps || dp_id_2 >= num_dps) {
-        fprintf(stderr, "Invalid Dirchlet process ID.\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    if (dp_id_1 == dp_id_2) {
-        return 0.0;
-    }
-    
-    if (dp_id_1 < dp_id_2) {
-        return get_dir_proc_distance(memo, dp_id_2, dp_id_1);
-    }
-    
-    int64_t idx = ((dp_id_1 - 1) * dp_id_1) / 2 + dp_id_2;
-    double* matrix = memo->memo_matrix;
-    if (matrix[idx] < 0) {
-        matrix[idx] = memo->metric_func(memo->hdp, dp_id_1, dp_id_2);
-    }
-    
-    return matrix[idx];
-}
-
-double dir_proc_kl_divergence(HierarchicalDirichletProcess* hdp, int64_t dp_id_1, int64_t dp_id_2) {
-    if (!hdp->splines_finalized) {
-        fprintf(stderr, "Cannot compute a KL divergence before finalizing distributions.\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    int64_t grid_length = hdp->grid_length;
-    double* grid = hdp->sampling_grid;
-    
-    double divergence = 0.0;
-    
-    DirichletProcess* dp_1 = hdp->dps[dp_id_1];
-    DirichletProcess* dp_2 = hdp->dps[dp_id_2];
-    while (!dp_1->observed) {
-        dp_1 = dp_1->parent;
-    }
-    while (!dp_2->observed) {
-        dp_2 = dp_2->parent;
-    }
-    
-    double* distr_1 = dp_1->posterior_predictive;
-    double* distr_2 = dp_2->posterior_predictive;
-    
-    double left_pt = distr_1[0] * log(distr_1[0] / distr_2[0]) + distr_2[0] * log(distr_2[0] / distr_1[0]);
-    double right_pt;
-    double dx;
-    for (int64_t i = 1; i < grid_length; i++) {
-        right_pt = distr_1[i] * log(distr_1[i] / distr_2[i]) + distr_2[i] * log(distr_2[i] / distr_1[i]);
-        
-        dx = grid[i] - grid[i - 1];
-        
-        divergence += 0.5 * (left_pt + right_pt) * dx;
-        
-        left_pt = right_pt;
-    }
-    
-    return divergence;
-}
-
-DistributionMetricMemo* new_kl_divergence_memo(HierarchicalDirichletProcess* hdp) {
-    return new_distr_metric_memo(hdp, &dir_proc_kl_divergence);
-}
-
-double dir_proc_hellinger_distance(HierarchicalDirichletProcess* hdp, int64_t dp_id_1, int64_t dp_id_2) {
-    if (!hdp->splines_finalized) {
-        fprintf(stderr, "Cannot compute a distribution metric before finalizing distributions.\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    int64_t grid_length = hdp->grid_length;
-    double* grid = hdp->sampling_grid;
-    
-    double integral = 0.0;
-    
-    DirichletProcess* dp_1 = hdp->dps[dp_id_1];
-    DirichletProcess* dp_2 = hdp->dps[dp_id_2];
-    while (!dp_1->observed) {
-        dp_1 = dp_1->parent;
-    }
-    while (!dp_2->observed) {
-        dp_2 = dp_2->parent;
-    }
-    
-    double* distr_1 = dp_1->posterior_predictive;
-    double* distr_2 = dp_2->posterior_predictive;
-    
-    double left_pt = sqrt(distr_1[0] * distr_2[0]);
-    double right_pt;
-    double dx;
-    for (int64_t i = 1; i < grid_length; i++) {
-        right_pt = sqrt(distr_1[i] * distr_2[i]);
-        
-        dx = grid[i] - grid[i - 1];
-        
-        integral += 0.5 * (left_pt + right_pt) * dx;
-        
-        left_pt = right_pt;
-    }
-    
-    return sqrt(1.0 - integral);
-}
-
-DistributionMetricMemo* new_hellinger_distance_memo(HierarchicalDirichletProcess* hdp) {
-    return new_distr_metric_memo(hdp, &dir_proc_hellinger_distance);
-}
-
-double dir_proc_l2_distance(HierarchicalDirichletProcess* hdp, int64_t dp_id_1, int64_t dp_id_2) {
-    if (!hdp->splines_finalized) {
-        fprintf(stderr, "Cannot compute a distribution metric before finalizing distributions.\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    int64_t grid_length = hdp->grid_length;
-    double* grid = hdp->sampling_grid;
-    
-    double integral = 0.0;
-    
-    DirichletProcess* dp_1 = hdp->dps[dp_id_1];
-    DirichletProcess* dp_2 = hdp->dps[dp_id_2];
-    while (!dp_1->observed) {
-        dp_1 = dp_1->parent;
-    }
-    while (!dp_2->observed) {
-        dp_2 = dp_2->parent;
-    }
-    
-    double* distr_1 = dp_1->posterior_predictive;
-    double* distr_2 = dp_2->posterior_predictive;
-    
-    double diff = distr_1[0] - distr_2[0];
-    double left_pt = diff * diff;
-    double right_pt;
-    double dx;
-    for (int64_t i = 1; i < grid_length; i++) {
-        diff = distr_1[i] - distr_2[i];
-        right_pt = diff * diff;
-        
-        dx = grid[i] - grid[i - 1];
-        
-        integral += 0.5 * (left_pt + right_pt) * dx;
-        
-        left_pt = right_pt;
-    }
-    
-    return sqrt(integral);
-}
-
-DistributionMetricMemo* new_l2_distance_memo(HierarchicalDirichletProcess* hdp) {
-    return new_distr_metric_memo(hdp, &dir_proc_l2_distance);
-}
-
-double dir_proc_shannon_jensen_distance(HierarchicalDirichletProcess* hdp, int64_t dp_id_1, int64_t dp_id_2) {
-    if (!hdp->splines_finalized) {
-        fprintf(stderr, "Cannot compute a Shannon-Jensen divergence before finalizing distributions.\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    int64_t grid_length = hdp->grid_length;
-    double* grid = hdp->sampling_grid;
-    
-    double divergence = 0.0;
-    
-    DirichletProcess* dp_1 = hdp->dps[dp_id_1];
-    DirichletProcess* dp_2 = hdp->dps[dp_id_2];
-    while (!dp_1->observed) {
-        dp_1 = dp_1->parent;
-    }
-    while (!dp_2->observed) {
-        dp_2 = dp_2->parent;
-    }
-    
-    double* distr_1 = dp_1->posterior_predictive;
-    double* distr_2 = dp_2->posterior_predictive;
-    double mean_distr_pt = 0.5 * (distr_1[0] + distr_2[0]);
-    double left_pt = 0.5 * (distr_1[0] * log(distr_1[0] / mean_distr_pt) + distr_2[0] * log(distr_2[0] / mean_distr_pt));
-    double right_pt;
-    double dx;
-    for (int64_t i = 1; i < grid_length; i++) {
-        mean_distr_pt = 0.5 * (distr_1[i] + distr_2[i]);
-        right_pt = 0.5 * (distr_1[i] * log(distr_1[i] / mean_distr_pt) + distr_2[i] * log(distr_2[i] / mean_distr_pt));
-        
-        dx = grid[i] - grid[i - 1];
-        
-        divergence += 0.5 * (left_pt + right_pt) * dx;
-        
-        left_pt = right_pt;
-    }
-    
-    return sqrt(divergence);
-}
-
-DistributionMetricMemo* new_shannon_jensen_distance_memo(HierarchicalDirichletProcess* hdp) {
-    return new_distr_metric_memo(hdp, &dir_proc_shannon_jensen_distance);
-}
-
 
 void serialize_hdp(HierarchicalDirichletProcess* hdp, FILE* out) {
     

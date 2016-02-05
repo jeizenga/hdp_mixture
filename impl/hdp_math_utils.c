@@ -27,58 +27,6 @@
 #define MINUS_INF -0.5 * DBL_MAX
 #endif
 
-
-//void parallel_cdf(double* cdf, double* probs, int64_t length, int64_t chunk_size) {
-//    parallel_cdf_internal(cdf, probs, length, 1);
-//}
-//
-//void parallel_cdf_internal(double* cumulative, double* values, int64_t length,
-//                           int64_t chunk_size, int64_t stride) {
-//    
-//    int64_t num_chunks = (length - 1) / chunk_size + 1;
-//    
-//    if ( num_chunks <= 2 ) {
-//        double cumul = 0.0;
-//        for (int64_t i = 0; i < length; i += stride) {
-//            cumul += values[i];
-//            cumulative[i] = cumul;
-//        }
-//        return;
-//    }
-//    
-//    
-//    #pragma omp parallel for shared(cdf,probs)
-//    for (int64_t i = 0; i < num_chunks; i++) {
-//        int64_t start = i * chunk_size;
-//        int64_t stop = start + chunk_size;
-//        if (stop > length) {
-//            stop = length;
-//        }
-//        
-//        double partial_cumul = 0.0;
-//        for (int64_t j = start; j < stop; j += stride) {
-//            partial_cumul += probs[j];
-//            cdf[j] = partial_cumul;
-//        }
-//    }
-//    
-//    double* partial_sums = (double*) malloc(sizeof(double) * (num_chunks - 1));
-////    double partial_sums_cumul = 0.0;
-////    for (int64_t i = chunk_size - 1; i < length; i += chunk_size) {
-////        partial_sums_cumul += cdf[i];
-////        partial_sums[i / chunk_size] = partial_sums_cumul;
-////    }
-//    
-//    parallel_cdf_internal(
-//    
-//    #pragma omp parallel for shared(cdf,partial_sums)
-//    for (int64_t i = chunk_size; i < length; i++) {
-//        cdf[i] += partial_sums[i / chunk_size - 1];
-//    }
-//    
-//    free(partial_sums);
-//}
-
 void parallel_cdf(double* cdf, double* probs, int64_t length, int64_t chunk_size) {
     
     if (2 * chunk_size >= length) {
