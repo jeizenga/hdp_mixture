@@ -102,6 +102,50 @@ void test_kmer_id(CuTest* ct) {
     CuAssertIntEquals(ct, standard_kmer_id("AACAA", 5), 16);
 }
 
+void create_flat_model(CuTest* ct) {
+    printf("flat\n");
+    NanoporeHDP* nhdp = flat_hdp_model("ACGT", 4, 6, 1.0, 1.0, -1.0 ,1.0, 10,
+                                       "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_model.model");
+    update_nhdp_from_alignment(nhdp, "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_alignment.tsv",
+                               false);
+    
+    CuAssert(ct, "did not complete nhdp construction\n", true);
+    destroy_nanopore_hdp(nhdp);
+}
+
+void create_multiset_model(CuTest* ct) {
+    printf("multiset\n");
+    NanoporeHDP* nhdp = multiset_hdp_model("ACGT", 4, 6, 1.0, 1.0, 1.0, -1.0 ,1.0, 10,
+                                       "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_model.model");
+    update_nhdp_from_alignment(nhdp, "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_alignment.tsv",
+                               false);
+    
+    CuAssert(ct, "did not complete nhdp construction\n", true);
+}
+
+void create_purine_model(CuTest* ct) {
+    printf("purine\n");
+    NanoporeHDP* nhdp = purine_composition_hdp_model("AG", 2, "CT", 2, 6, 1.0, 1.0, 1.0, -1.0 ,1.0, 10,
+                                                     "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_model.model");
+    update_nhdp_from_alignment(nhdp, "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_alignment.tsv",
+                               false);
+    
+    CuAssert(ct, "did not complete nhdp construction\n", true);
+    destroy_nanopore_hdp(nhdp);
+}
+
+void create_middle_nts_model(CuTest* ct) {
+    printf("middle\n");
+    NanoporeHDP* nhdp = middle_2_nts_hdp_model("ACGT", 4, 6, 1.0, 1.0, 1.0, -1.0 ,1.0, 10,
+                                               "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_model.model");
+    update_nhdp_from_alignment(nhdp, "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_alignment.tsv",
+                               false);
+    
+    CuAssert(ct, "did not complete nhdp construction\n", true);
+    destroy_nanopore_hdp(nhdp);
+}
+
+
 CuSuite* get_suite() {
     
     CuSuite* suite = CuSuiteNew();
@@ -112,6 +156,10 @@ CuSuite* get_suite() {
     SUITE_ADD_TEST(suite, test_multiset_creation);
     SUITE_ADD_TEST(suite, test_word_id_to_multiset_id);
     SUITE_ADD_TEST(suite, test_kmer_id);
+    SUITE_ADD_TEST(suite, create_flat_model);
+    SUITE_ADD_TEST(suite, create_multiset_model);
+    SUITE_ADD_TEST(suite, create_purine_model);
+    SUITE_ADD_TEST(suite, create_middle_nts_model);
     
     return suite;
 }

@@ -520,13 +520,13 @@ NanoporeHDP* flat_hdp_model_2(const char* alphabet, int64_t alphabet_size, int64
 
 int64_t multiset_hdp_num_dps(int64_t alphabet_size, int64_t kmer_length) {
     int64_t num_leaves = power(alphabet_size, kmer_length);
-    int64_t num_middle_dps = multiset_number(kmer_length, alphabet_size);
+    int64_t num_middle_dps = multiset_number(alphabet_size, kmer_length);
     return num_leaves + num_middle_dps + 1;
 }
 
 void multiset_hdp_model_internal(HierarchicalDirichletProcess* hdp, int64_t alphabet_size, int64_t kmer_length) {
     int64_t num_leaves = power(alphabet_size, kmer_length);
-    int64_t num_middle_dps = multiset_number(kmer_length, alphabet_size);
+    int64_t num_middle_dps = multiset_number(alphabet_size, kmer_length);
     
     // set kmer parents to multisets
     int64_t multiset_id;
@@ -623,7 +623,7 @@ void middle_2_nts_hdp_model_internal(HierarchicalDirichletProcess* hdp, int64_t 
     int64_t middle_dp_id;
     for (int64_t kmer_id = 0; kmer_id < num_leaves; kmer_id++) {
         middle_dp_id = kmer_id_to_middle_nts_id(kmer_id, alphabet_size, kmer_length);
-        set_dir_proc_parent(hdp, kmer_id, middle_dp_id);
+        set_dir_proc_parent(hdp, kmer_id, middle_dp_id + num_leaves);
     }
     
     int64_t last_dp_id = num_leaves + num_middle_dps;
@@ -637,7 +637,7 @@ NanoporeHDP* middle_2_nts_hdp_model(const char* alphabet, int64_t alphabet_size,
                                     double sampling_grid_start, double sampling_grid_stop, int64_t sampling_grid_length,
                                     const char* model_filepath) {
     if (kmer_length % 2 != 0) {
-        fprintf(stderr, "Warning: middle 2 nucleotides of odd length kmer is ambiguous. Resolving arbitrarily.\n");
+        fprintf(stderr, "Warning: middle two nucleotides of odd length kmer is ambiguous. Resolving arbitrarily.\n");
     }
     
     double* gamma_params = (double*) malloc(sizeof(double) * 3);
@@ -760,7 +760,7 @@ NanoporeHDP* purine_composition_hdp_model(char* purine_alphabet, int64_t num_pur
     alphabet = get_nanopore_hdp_alphabet(nhdp);
     bool* purines = (bool*) malloc(sizeof(bool) * alphabet_size);
     for (int64_t i = 0; i < num_purines; i++) {
-        purine_alphabet[i] = false;
+        purines[i] = false;
         for (int64_t j = 0; j < num_purines; j++) {
             if (alphabet[i] == purine_alphabet[j]) {
                 purines[i] = true;
