@@ -42,13 +42,13 @@ char* kmer_from_index(int index, char* alphabet, int alphabet_size, int kmer_len
     return kmer;
 }
 
-int power(int n, int k) {
-    int res = 1;
-    for (int i = 0; i < k; i++) {
-        res *= n;
-    }
-    return res;
-}
+//int power(int n, int k) {
+//    int res = 1;
+//    for (int i = 0; i < k; i++) {
+//        res *= n;
+//    }
+//    return res;
+//}
 
 int choose(int n, int r) {
     int lim = n - r;
@@ -144,26 +144,27 @@ double mean_pairwise_distance(char* restricted_kmer, int kmer_length, int* posit
         query_kmer_2[i] = restricted_kmer[i];
     }
     
-    char* subsitutions_1, subsitutions_2;
+    char* substitutions_1;
+    char* substitutions_2;
     for (int i = 1; i < num_nuclotide_combos; i++) {
-        subsitutions_1 = kmer_from_index(i, compare_set, set_size, num_positions);
+        substitutions_1 = kmer_from_index(i, compare_set, set_size, num_positions);
         
         for (int k = 0; k < num_positions; k++) {
-            query_kmer_1[positions[k]] = subsitutions_1[k];
+            query_kmer_1[positions[k]] = substitutions_1[k];
         }
         
         for (int j = 0; j < i; j++) {
-            subsitutions_2 = kmer_from_index(j, compare_set, set_size, num_positions);
+            substitutions_2 = kmer_from_index(j, compare_set, set_size, num_positions);
             
             for (int k = 0; k < num_positions; k++) {
-                query_kmer_2[positions[k]] = subsitutions_2[k];
+                query_kmer_2[positions[k]] = substitutions_2[k];
             }
             
             sum_distance += get_kmer_distr_distance(metric_memo, query_kmer_1, query_kmer_2);
             
-            free(subsitutions_2);
+            free(substitutions_2);
         }
-        free(subsitutions_1);
+        free(substitutions_1);
     }
     
     free(query_kmer_1);
@@ -185,11 +186,10 @@ char* get_labeled_kmer(char* restricted_kmer, int kmer_length, int* positions, i
         }
     }
     labeled_kmer[kmer_length + num_positions] = '\0';
+    return labeled_kmer;
 }
 
 int main(int argc, char** argv) {
-    
-    int opterr = 0;
     
     DistributionMetric metric = HELLINGER;
     char* comparison_nucleotides = CYTOSINE_MODS;
@@ -280,7 +280,7 @@ int main(int argc, char** argv) {
         }
         if (!in_comparison_nucleotides) {
             fprintf(stderr, "ERROR: root comparison nucleotide '%c' not in comparison group '%s'.\n",
-                    root_comparison_nucleotide, comparison_nucleotides)
+                    root_comparison_nucleotide, comparison_nucleotides);
         }
     }
     
@@ -325,7 +325,7 @@ int main(int argc, char** argv) {
             if (alphabet[i] == comparison_nucleotides[j] &&
                 comparison_nucleotides[j] != root_comparison_nucleotide) {
                 in_restricted = false;
-                break
+                break;
             }
         }
         if (in_restricted) {
@@ -345,7 +345,7 @@ int main(int argc, char** argv) {
     bool* which_positions;
     
     for (int kmer_num = 0; kmer_num < num_restricted_kmers; kmer_num++) {
-        char* kmer = kmer_from_index(index, restricted_alphabet, restricted_alphabet_size, kmer_length);
+        char* kmer = kmer_from_index(kmer_num, restricted_alphabet, restricted_alphabet_size, kmer_length);
         
         int count;
         int* positions;
@@ -359,8 +359,8 @@ int main(int argc, char** argv) {
         // not enough varying sites to need to break them up
         else if (count <= max_combo_size) {
             labeled_kmer = get_labeled_kmer(kmer, kmer_length, positions, count);
-            mean_dist = mean_pairwise_distance(kmer, kmer_length, positions, num_positions, comparison_nucleotides,
-                                                num_comparison_nucleotides, metric_memo);
+            mean_dist = mean_pairwise_distance(kmer, kmer_length, positions, count, comparison_nucleotides,
+                                               num_comparison_nucleotides, metric_memo);
             
             fprintf(output_file, "%s\t%lf\n", labeled_kmer, mean_dist);
             
