@@ -384,12 +384,10 @@ int64_t bisect_left(double x, double* arr, int64_t length) {
     int64_t low = 0;
     int64_t hi = length - 1;
     int64_t mid;
-    double arr_mid;
     while (hi > low + 1) {
         mid = (hi + low) / 2;
         
-        arr_mid = arr[mid];
-        if (x <= arr_mid) {
+        if (x <= arr[mid]) {
             hi = mid;
         }
         else {
@@ -558,6 +556,7 @@ void normal_inverse_gamma_params(double* x, int64_t length, double* mu_out, doub
     *beta_out = .5 * sum_sq_devs;
 }
 
+// modified from Scipy source: https://github.com/scipy/scipy/blob/master/scipy/special/cephes/psi.c
 static double A_digamma[] = {
     8.33333333333333333333E-2,
     -2.10927960927960927961E-2,
@@ -568,7 +567,6 @@ static double A_digamma[] = {
     8.33333333333333333333E-2
 };
 
-// modified from Scipy source: https://github.com/scipy/scipy/blob/master/scipy/special/cephes/psi.c
 static double polevl(double x, double coef[], int N)
 {
     double ans;
@@ -748,10 +746,10 @@ double trigamma(double x) {
     return hurwitz_zeta(2.0, x);
 }
 
-double newton_approx_alpha(int64_t length, double sum_log_tau, double sum_tau) {
+double newton_approx_alpha(int64_t length, double sum_log_tau, double sum_tau, double tol) {
     double constant = sum_log_tau / length - log( sum_tau / length);
     
-    double alpha = (double) 1.0;
+    double alpha = 1.0;
     
     double f_alpha;
     double df_alpha;
@@ -766,7 +764,7 @@ double newton_approx_alpha(int64_t length, double sum_log_tau, double sum_tau) {
         }
         
         alpha_prime = alpha - f_alpha / df_alpha;
-        if (fabs(alpha - alpha_prime) < MACHEP) {
+        if (fabs(alpha - alpha_prime) < tol) {
             return alpha_prime;
         }
         alpha = alpha_prime;
@@ -799,7 +797,7 @@ void mle_normal_inverse_gamma_params(double* mus, double* taus, int64_t length, 
     
     double nu = ((double) length) / sum_weighted_sq_devs;
     
-    double alpha = newton_approx_alpha(length, sum_log_tau, sum_tau);
+    double alpha = newton_approx_alpha(length, sum_log_tau, sum_tau, .000000001);
     
     double beta = length * alpha / sum_tau;
     
@@ -808,6 +806,356 @@ void mle_normal_inverse_gamma_params(double* mus, double* taus, int64_t length, 
     *alpha_out = alpha;
     *beta_out = beta;
 }
+
+double* matrix_mult(double* A, double* B, int64_t m, int64_t n, int64_t p) {
+    double* C = (double*) malloc(sizeof(double) * m * p);
+    
+    for (int64_t i = 0; i < m; i++) {
+        for (int64_t j = 0; j < p; j++) {
+            int64_t idx = i * p + j;
+            C[idx] = 0.0;
+            for (int64_t k = 0; k < n; k++) {
+                C[idx] += A[i * n + k] * B[k * p + j];
+            }
+        }
+    }
+    
+    return C;
+}
+
+// for debugging
+void print_matrix(double* A, int64_t m, int64_t n) {
+    for (int64_t i = 0; i < m; i++) {
+        for (int64_t j = 0; j < n; j++) {
+            printf("%f\t", A[i * m + j]);
+        }
+         printf("\n");
+    }
+    printf("\n");
+}
+
+double* matrix_inverse(double* A, int64_t n) {
+    double* aux_matrix = (double*) malloc(sizeof(double) * n * n);
+    double* A_inv =(double*) malloc(sizeof(double) * n * n);
+    
+    int64_t idx;
+    for (int64_t i = 0; i < n; i++) {
+        for (int64_t j = 0; j < n; j++) {
+            idx = i * n + j;
+            aux_matrix[idx] = A[idx];
+            if (i == j) {
+                A_inv[idx] = 1.0;
+            }
+            else {
+                A_inv[idx] = 0.0;
+            }
+        }
+    }
+    double factor;
+    int64_t sub_idx;
+    int64_t swap_idx;
+    for (int64_t i = 0; i < n; i++) {
+        if (fabs(aux_matrix[i * n + i]) < MACHEP) {
+            int64_t swap = i + 1;
+            while (aux_matrix[swap * n + i] < MACHEP) {
+                swap++;
+                if (swap >= n) {
+                    fprintf(stderr, "Matrix is not invertible.\n");
+                    exit(EXIT_FAILURE);
+                }
+            }
+            double temp;
+            for (int64_t j = 0; j < n; j++) {
+                idx = i * n + j;
+                swap_idx = swap * n + j;
+                temp = aux_matrix[idx];
+                aux_matrix[idx] = aux_matrix[swap_idx];
+                aux_matrix[swap_idx] = temp;
+                temp = A_inv[idx];
+                A_inv[idx] = A_inv[swap_idx];
+                A_inv[swap_idx] = temp;
+            };
+        }
+        
+        factor = 1.0 / aux_matrix[i * n + i];
+        for (int64_t j = 0; j < n; j++) {
+            idx = i * n + j;
+            A_inv[idx] *= factor;
+            aux_matrix[idx] *= factor;
+        }
+        
+        for (int64_t sub = i + 1; sub < n; sub++) {
+            factor = aux_matrix[sub * n + i];
+            for (int64_t j = 0; j < n; j++) {
+                idx = i * n + j;
+                sub_idx = sub * n + j;
+                A_inv[sub_idx] -= factor * A_inv[idx];
+                aux_matrix[sub_idx] -= factor * aux_matrix[idx];
+            }
+
+        }
+        
+    }
+    
+    for (int64_t i = n - 1; i >= 0; i--) {
+        for (int64_t sub = i - 1; sub >= 0; sub--) {
+            factor = aux_matrix[sub * n + i];
+            for (int64_t j = 0; j < n; j++) {
+                idx = i * n + j;
+                sub_idx = sub * n + j;
+                A_inv[sub_idx] -= factor * A_inv[idx];
+                aux_matrix[sub_idx] -= factor * aux_matrix[idx];
+            }
+        }
+    }
+    
+    free(aux_matrix);
+    return A_inv;
+}
+
+void lineq_solve(double* A, double* b, double* x_out, int64_t n) {
+    double* aux_matrix = (double*) malloc(sizeof(double) * n * n);
+    
+    int64_t idx;
+    for (int64_t i = 0; i < n; i++) {
+        x_out[i] = b[i];
+        for (int64_t j = 0; j < n; j++) {
+            idx = i * n + j;
+            aux_matrix[idx] = A[idx];
+        }
+    }
+    
+    double factor;
+    for (int64_t i = 0; i < n; i++) {
+        if (fabs(aux_matrix[i * n + i]) < MACHEP) {
+            int64_t swap = i + 1;
+            while (aux_matrix[swap * n + i] < MACHEP) {
+                swap++;
+                if (swap >= n) {
+                    fprintf(stderr, "Matrix is not invertible.\n");
+                    exit(EXIT_FAILURE);
+                }
+            }
+            double temp;
+            for (int64_t j = 0; j < n; j++) {
+                temp = aux_matrix[i * n + j];
+                aux_matrix[i * n + j] = aux_matrix[swap * n + j];
+                aux_matrix[swap * n + j] = temp;
+            }
+            temp = x_out[i];
+            x_out[i] = x_out[swap];
+            x_out[swap] = x_out[i];
+        }
+        
+        factor = 1.0 / aux_matrix[i * n + i];
+        x_out[i] *= factor;
+        for (int64_t j = 0; j < n; j++) {
+            aux_matrix[i * n + j] *= factor;
+        }
+        
+        for (int64_t sub = i + 1; sub < n; sub++) {
+            factor = aux_matrix[sub * n + i];
+            x_out[sub] -= factor * x_out[i];
+            for (int64_t j = 0; j < n; j++) {
+                aux_matrix[sub * n + j] -= factor * aux_matrix[i * n + j];
+            }
+        }
+        
+    }
+    
+    for (int64_t i = n - 1; i >= 0; i--) {
+        for (int64_t sub = i - 1; sub >= 0; sub--) {
+            factor = aux_matrix[sub * n + i];
+            x_out[sub] -= factor * x_out[i];
+            for (int64_t j = 0; j < n; j++) {
+                aux_matrix[sub * n + j] -= factor * aux_matrix[i * n + j];
+            }
+        }
+    }
+    
+    free(aux_matrix);
+}
+
+void t_distr_derivs(double* x, int64_t length, double mu, double nu, double alpha, double beta,
+                    double* gradient_out, double* hessian_out) {
+    
+    double nu_incr = nu + 1.0;
+    double alpha_incr = alpha + 0.5;
+    double denom_const = 2.0 * beta * nu_incr;
+    
+    double dm = 0;
+    double dm_factor = 2.0 * nu;
+    double dn = 0;
+    double dn_factor = 1.0 / nu_incr;
+    double da = 0;
+    double da_factor = nu / (2.0 * nu_incr * beta);
+    double db = 0;
+    double db_factor = nu / beta;
+    
+    double dm2 = 0;
+    double dm2_factor = -2.0 * nu * nu;
+    double dm2_const = 4.0 * nu * beta * nu_incr;
+    double dmdn = 0;
+    double dmdn_factor = 4.0 * beta;
+    double dmda = 0;
+    double dmda_factor = 2.0 * nu;
+    double dmdb = 0;
+    double dmdb_factor = 4.0 * nu * nu_incr;
+    double dn2 = 0;
+    double dn2_const = 4.0 * beta / nu_incr;
+    double dn2_factor = (2.0 * nu + 1.0) / (nu_incr * nu_incr);
+    double dnda = 0;
+    double dndb = 0;
+    double da2;
+    double dadb = 0;
+    double dadb_factor = nu / beta;
+    double db2 = 0;
+    double db2_const = 4.0 * nu_incr * nu_incr;
+    
+    double dev;
+    double sq_dev;
+    double denom;
+    double sq_denom;
+    for (int64_t i = 0; i < length; i++) {
+        dev = mu - x[i];
+        sq_dev = dev * dev;
+        denom = denom_const + nu * sq_dev;
+        sq_denom = denom * denom;
+        
+        dm -= dm_factor * dev / denom;
+        dn -= dn_factor * sq_dev / denom;
+        da -= log(1.0 + da_factor * sq_dev);
+        db += db_factor * sq_dev / denom;
+
+        dm2 -= (dm2_const + dm2_factor * sq_dev) / sq_denom;
+        dmdn -= (dmdn_factor * dev) / sq_denom;
+        dmda -= dmda_factor * dev / denom;
+        dmdb += dmdb_factor * dev / sq_denom;
+        dn2 += sq_dev * (dn2_const + dn2_factor * sq_dev) / sq_denom;
+        dnda -= sq_dev / (denom * nu_incr);
+        dndb += 2.0 * sq_dev / sq_denom;
+        dadb += dadb_factor * sq_dev / denom;
+        db2 += db2_const / sq_denom;
+    }
+    
+    dm *= alpha_incr;
+    dn *= alpha_incr;
+    db *= alpha_incr;
+    
+    dm2 *= alpha_incr;
+    dmdn *= alpha_incr;
+    dmdb *= alpha_incr;
+    dn2 *= alpha_incr;
+    dndb *= alpha_incr;
+    db2 *= alpha_incr;
+    
+    dn += 0.5 * length / (nu * nu_incr);
+    da += length * (digamma(alpha_incr) - digamma(alpha));
+    db -= length / (2.0 * beta);
+    
+    dn2 -= 0.5 * length * (2.0 * nu + 1.0) / (nu * nu * nu_incr * nu_incr);
+    db2 -= length * (alpha + 1.0) / (beta * beta);
+    da2 = length * (trigamma(alpha_incr) - trigamma(alpha));
+    
+    gradient_out[0] = dm;   gradient_out[1] = dn;   gradient_out[2] = da;   gradient_out[3] = db;
+    
+    hessian_out[0]  = dm2;  hessian_out[1]  = dmdn; hessian_out[2]  = dmda; hessian_out[3]  = dmdb;
+    hessian_out[4]  = dmdn; hessian_out[5]  = dn2;  hessian_out[6]  = dnda; hessian_out[7]  = dndb;
+    hessian_out[8]  = dmda; hessian_out[9]  = dnda; hessian_out[10] = da2;  hessian_out[11] = dadb;
+    hessian_out[12] = dmdb; hessian_out[13] = dndb; hessian_out[14] = dadb; hessian_out[15] = db2;
+    
+}
+
+void max_pred_normal_inverse_gamma_params(double* x, int64_t length, double* mu_0_out,
+                                          double* nu_out, double* alpha_out, double* beta_out) {
+    
+    double* params = (double*) malloc(sizeof(double) * 4);
+    double* step = (double*) malloc(sizeof(double) * 4);
+    double* gradient = (double*) malloc(sizeof(double) * 4);
+    double* hessian = (double*) malloc(sizeof(double) * 16);
+    
+    params[0] = 0.0; params[1] = 1.0 ; params[2] = 1.0; params[3] = 1.0;
+    step[0] = 2.0 * MACHEP; step[1] = 2.0 * MACHEP; step[2] = 2.0 * MACHEP; step[3] = 2.0 * MACHEP;
+    
+    printf("m = %lf, n = %lf, a = %lf, b = %lf\n\n",  params[0], params[1], params[2], params[3]);
+    
+    while (fabs(step[0]) > MACHEP || fabs(step[1]) > MACHEP || fabs(step[2]) > MACHEP ||
+           fabs(step[3]) > MACHEP) {
+        
+        t_distr_derivs(x, length, params[0], params[1], params[2], params[3], gradient, hessian);
+        
+        for (int64_t i = 0; i < 4; i++) {
+            gradient[i] = -gradient[i];
+        }
+        
+        lineq_solve(hessian, gradient, step, 4);
+        
+        
+        for (int64_t i = 0; i < 4; i++) {
+            //printf("param = %lf, step = %lf\n", params[i], step[i]);
+            params[i] += step[i];
+        }
+        
+        printf("gradient\n");
+        print_matrix(gradient, 1, 4);
+        printf("hessian\n");
+        print_matrix(hessian, 4, 4);
+        printf("step\n");
+        print_matrix(step, 1, 4);
+        printf("params\n");
+        print_matrix(params, 1, 4);
+        
+        //printf("m = %lf, n = %lf, a = %lf, b = %lf\n\n",  params[0], params[1], params[2], params[3]);
+    }
+    
+    *mu_0_out = params[0];
+    *nu_out = params[1];
+    *alpha_out = params[2];
+    *beta_out = params[3];
+    
+    free(params);
+    free(step);
+    free(gradient);
+    free(hessian);
+}
+
+void max_pred_normal_inverse_gamma_params_2(double* x, int64_t length, double ascent_rate, double* mu_0_out,
+                                          double* nu_out, double* alpha_out, double* beta_out, double tol) {
+    
+    double* params = (double*) malloc(sizeof(double) * 4);
+    double* gradient = (double*) malloc(sizeof(double) * 4);
+    double* hessian = (double*) malloc(sizeof(double) * 16);
+    
+    params[0] = 0.0; params[1] = 1.0 ; params[2] = 1.0; params[3] = 1.0;
+    
+    printf("m = %lf, n = %lf, a = %lf, b = %lf\n\n",  params[0], params[1], params[2], params[3]);
+    double delta = 10.0 * tol;
+    double step;
+    
+    while (fabs(delta) > 8.0 * tol) {
+        
+        t_distr_derivs(x, length, params[0], params[1], params[2], params[3], gradient, hessian);
+        delta = 0.0;
+        
+        for (int64_t i = 0; i < 4; i++) {
+            step = gradient[i] * ascent_rate;
+            params[i] += step;
+            delta += step;
+        }
+        
+        printf("delta = %lf, m = %lf, n = %lf, a = %lf, b = %lf\n\n",  delta, params[0], params[1], params[2], params[3]);
+    }
+    
+    *mu_0_out = params[0];
+    *nu_out = params[1];
+    *alpha_out = params[2];
+    *beta_out = params[3];
+    
+    free(params);
+    free(gradient);
+    free(hessian);
+}
+
 
 int64_t* stList_toIntPtr(stList* list, int64_t* length_out) {
     int64_t length = (int64_t) stList_length(list);

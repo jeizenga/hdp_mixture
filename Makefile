@@ -17,7 +17,6 @@ CC:=gcc-5.2.0
 
 all: ${OBJDIR}/CuTest.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/rnglib.o ${OBJDIR}/ranlib.o ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/hdp.o ${OBJDIR}/nanopore_hdp.o ${BINDIR}/main ${BINDIR}/utils_tests ${BINDIR}/nanopore_hdp_tests ${BINDIR}/serialization_tests ${BINDIR}/distribution_comparison_tests ${BINDIR}/base_params_tests ${BINDIR}/parallel_tests ${BINDIR}/distr_script
 
-
 ${OBJDIR}/nanopore_hdp.o: ${OBJDIR}/hdp.o
 	${CC} ${CFLAGS} -c ${IMPLDIR}/nanopore_hdp.c ${INC} -o ${OBJDIR}/nanopore_hdp.o
 
@@ -90,6 +89,12 @@ ${BINDIR}/distr_script: ${TESTDIR}/distr_script.c ${OBJDIR}/nanopore_hdp.o ${OBJ
 	${CC} ${CFLAGS} ${OBJDIR}/distr_script.o ${OBJDIR}/nanopore_hdp.o ${OBJDIR}/hdp.o ${OBJDIR}/hdp_math_utils.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/ranlib.o ${OBJDIR}/rnglib.o ${INC} ${LINK} -o ${BINDIR}/distr_script
 	chmod +x ${BINDIR}/distr_script
 	rm ${OBJDIR}/distr_script.o	
+
+${BINDIR}/distr_comparison_script: ${TESTDIR}/distr_comparison_script.c ${OBJDIR}/nanopore_hdp.o
+	${CC} ${CFLAGS} -c ${TESTDIR}/distr_comparison_script.c ${INC} -o ${OBJDIR}/distr_comparison_script.o
+	${CC} ${CFLAGS} ${OBJDIR}/distr_comparison_script.o ${OBJDIR}/nanopore_hdp.o ${OBJDIR}/hdp.o ${OBJDIR}/hdp_math_utils.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/ranlib.o ${OBJDIR}/rnglib.o ${INC} ${LINK} -o ${BINDIR}/distr_comparison_script
+	chmod +x ${BINDIR}/distr_comparison_script
+	rm ${OBJDIR}/distr_comparison_script.o	
 
 clean:
 	@if [ $$(find bin -type f | wc -l) -gt 0 ]; \

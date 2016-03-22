@@ -152,7 +152,7 @@ void normal_inverse_gamma_params_from_minION(const char* model_filepath, double*
         sscanf(mean_str, "%lf", &(means[i]));
         
         noise_str = (char*) stList_get(tokens, noise_offset + i * MODEL_ENTRY_LENGTH);
-        sscanf(mean_str, "%lf", &noise);
+        sscanf(noise_str, "%lf", &noise);
         precisions[i] = 1.0 / (noise * noise);
     }
     
@@ -454,6 +454,15 @@ double compare_nhdp_distrs_hellinger_distance(NanoporeHDP* nhdp_1, char* kmer_1,
                                                  nhdp_2->hdp, nhdp_kmer_id(nhdp_2, kmer_2));
 }
 
+double kmer_distr_expected_val(NanoporeHDP* nhdp, char* kmer) {
+    return dir_proc_expected_val(nhdp->hdp, nhdp_kmer_id(nhdp, kmer));
+}
+
+double kmer_distr_variance(NanoporeHDP* nhdp, char* kmer) {
+    return dir_proc_variance(nhdp->hdp, nhdp_kmer_id(nhdp, kmer));
+}
+
+
 int64_t flat_hdp_num_dps(int64_t alphabet_size, int64_t kmer_length) {
     int64_t num_leaves = power(alphabet_size, kmer_length);
     return num_leaves + 1;
@@ -596,6 +605,204 @@ NanoporeHDP* multiset_hdp_model_2(const char* alphabet, int64_t alphabet_size, i
     finalize_hdp_structure(hdp);
     
     NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
+    
+    return nhdp;
+}
+
+int64_t word_id_to_group_multiset_id(int64_t word_id, int64_t* char_groups, int64_t alphabet_size,
+                                     int64_t word_length, int64_t num_groups) {
+    int64_t* word = get_word(word_id, alphabet_size, word_length);
+    
+    for (int64_t i = 0; i < word_length; i++) {
+        word[i] = char_groups[word[i]];
+    }
+    
+    int64_t min_idx;
+    int64_t temp;
+    for (int64_t i = 0; i < word_length; i++) {
+        min_idx = i;
+        for (int64_t j = i + 1; j < word_length; j++) {
+            if (word[j] < word[min_idx]) {
+                min_idx = j;
+            }
+        }
+        temp = word[i];
+        word[i] = word[min_idx];
+        word[min_idx] = temp;
+    }
+    
+    int64_t id = multiset_id(word, word_length, num_groups);
+    free(word);
+    return id;
+}
+
+int64_t group_multiset_hdp_num_dps(int64_t alphabet_size, int64_t* char_groups, int64_t kmer_length) {
+    int64_t num_groups = 0;
+    for (int64_t i = 0; i < alphabet_size; i++) {
+        if (char_groups[i] + 1 > num_groups) {
+            num_groups = char_groups[i] + 1;
+        }
+    }
+    
+    int64_t num_leaves = power(alphabet_size, kmer_length);
+    int64_t num_middle_dps = multiset_number(num_groups, kmer_length);
+    return num_leaves + num_middle_dps + 1;
+}
+
+void group_multiset_hdp_model_internal(HierarchicalDirichletProcess* hdp, int64_t* char_groups,
+                                       int64_t alphabet_size, int64_t kmer_length) {
+    
+    int64_t num_groups = 0;
+    for (int64_t i = 0; i < alphabet_size; i++) {
+        if (char_groups[i] + 1 > num_groups) {
+            num_groups = char_groups[i] + 1;
+        }
+    }
+    
+    int64_t num_leaves = power(alphabet_size, kmer_length);
+    int64_t num_middle_dps = multiset_number(num_groups, kmer_length);
+    
+    // set kmer parents to multisets
+    int64_t multiset_id;
+    for (int64_t kmer_id = 0; kmer_id < num_leaves; kmer_id++) {
+        multiset_id = word_id_to_group_multiset_id(kmer_id, char_groups, alphabet_size, kmer_length, num_groups);
+        set_dir_proc_parent(hdp, kmer_id, num_leaves + multiset_id);
+    }
+    
+    // set multiset parents to base dp
+    int64_t last_dp_id = num_leaves + num_middle_dps;
+    for (int64_t middle_dp_id = num_leaves; middle_dp_id < last_dp_id; middle_dp_id++) {
+        set_dir_proc_parent(hdp, middle_dp_id, last_dp_id);
+    }
+}
+
+void confirm_valid_groupings(int64_t* char_groups, int64_t alphabet_size) {
+    
+    for (int64_t i = 0; i < alphabet_size; i++) {
+        if (char_groups[i] < 0) {
+            fprintf(stderr, "Group numbers must be non-negative.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+    
+    int64_t num_groups = 0;
+    for (int64_t i = 0; i < alphabet_size; i++) {
+        if (char_groups[i] + 1 > num_groups) {
+            num_groups = char_groups[i] + 1;
+        }
+    }
+    
+    for (int64_t i = 0; i < num_groups; i++) {
+        bool found_group = false;
+        for (int64_t j = 0; j < alphabet_size; j++) {
+            if (char_groups[j] == i) {
+                found_group = true;
+                break;
+            }
+        }
+        if (!found_group) {
+            fprintf(stderr, "Groups must be consecutively numbered starting with 0.\n");
+            exit(EXIT_FAILURE);
+        }
+    }
+}
+
+int64_t* alphabet_sort_groups(const char* alphabet, int64_t* char_groups, int64_t alphabet_size) {
+    char* aux_alphabet = (char*) malloc(sizeof(char) * alphabet_size);
+    int64_t* sorted_char_groups = (int64_t*) malloc(sizeof(int64_t) * alphabet_size);
+    
+    for (int64_t i = 0; i < alphabet_size; i++) {
+        aux_alphabet[i] = alphabet[i];
+        sorted_char_groups[i] = char_groups[i];
+    }
+    
+    int64_t temp_group;
+    char temp_char;
+    int64_t min_idx;
+    for (int64_t i = 0; i < alphabet_size; i++) {
+        min_idx = i;
+        for (int64_t j = i + 1; j < alphabet_size; j++) {
+            if (aux_alphabet[j] < aux_alphabet[min_idx]) {
+                min_idx = j;
+            }
+        }
+        temp_char = aux_alphabet[i];
+        aux_alphabet[i] = aux_alphabet[min_idx];
+        aux_alphabet[min_idx] = temp_char;
+        
+        temp_group = sorted_char_groups[i];
+        sorted_char_groups[i] = sorted_char_groups[min_idx];
+        sorted_char_groups[min_idx] = temp_group;
+    }
+    
+    free(aux_alphabet);
+    return sorted_char_groups;
+}
+
+// assumes char_groups are 0-based and consecutively numbered
+NanoporeHDP* group_multiset_hdp_model(const char* alphabet, int64_t* char_groups, int64_t alphabet_size, int64_t kmer_length,
+                                      double base_gamma, double middle_gamma, double leaf_gamma,
+                                      double sampling_grid_start, double sampling_grid_stop, int64_t sampling_grid_length,
+                                      const char* model_filepath) {
+    
+    confirm_valid_groupings(char_groups, alphabet_size);
+    
+    double* gamma_params = (double*) malloc(sizeof(double) * 3);
+    gamma_params[0] = base_gamma;
+    gamma_params[1] = middle_gamma;
+    gamma_params[2] = leaf_gamma;
+    
+    int64_t num_dps = group_multiset_hdp_num_dps(alphabet_size, char_groups, kmer_length);
+    
+    HierarchicalDirichletProcess* hdp = minION_hdp(num_dps, 3, gamma_params, sampling_grid_start,
+                                                   sampling_grid_stop, sampling_grid_length,
+                                                   model_filepath);
+    
+    int64_t* sorted_char_groups = alphabet_sort_groups(alphabet, char_groups, alphabet_size);
+    group_multiset_hdp_model_internal(hdp, sorted_char_groups, alphabet_size, kmer_length);
+    free(sorted_char_groups);
+    
+    finalize_hdp_structure(hdp);
+    
+    NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
+    
+    return nhdp;
+}
+
+// assumes char_groups are 0-based and consecutively numbered
+NanoporeHDP* group_multiset_hdp_model_2(const char* alphabet, int64_t* char_groups, int64_t alphabet_size, int64_t kmer_length,
+                                        double base_gamma_alpha, double base_gamma_beta, double middle_gamma_alpha,
+                                        double middle_gamma_beta, double leaf_gamma_alpha, double leaf_gamma_beta,
+                                        double sampling_grid_start, double sampling_grid_stop, int64_t sampling_grid_length,
+                                        const char* model_filepath) {
+    
+    confirm_valid_groupings(char_groups, alphabet_size);
+    
+    double* gamma_alpha = (double*) malloc(sizeof(double) * 3);
+    gamma_alpha[0] = base_gamma_alpha;
+    gamma_alpha[1] = middle_gamma_alpha;
+    gamma_alpha[2] = leaf_gamma_alpha;
+    
+    
+    double* gamma_beta = (double*) malloc(sizeof(double) * 3);
+    gamma_beta[0] = base_gamma_beta;
+    gamma_beta[1] = middle_gamma_beta;
+    gamma_beta[2] = leaf_gamma_beta;
+    
+    int64_t num_dps = group_multiset_hdp_num_dps(alphabet_size, char_groups, kmer_length);
+    
+    HierarchicalDirichletProcess* hdp = minION_hdp_2(num_dps, 3, gamma_alpha, gamma_beta, sampling_grid_start,
+                                                     sampling_grid_stop, sampling_grid_length,
+                                                     model_filepath);
+    
+    int64_t* sorted_char_groups = alphabet_sort_groups(alphabet, char_groups, alphabet_size);
+    group_multiset_hdp_model_internal(hdp, sorted_char_groups, alphabet_size, kmer_length);
+    free(sorted_char_groups);
+    
+    finalize_hdp_structure(hdp);
+    
+    NanoporeHDP* nhdp = package_nanopore_hdp(hdp, alphabet, alphabet_size, kmer_length);
+    
     
     return nhdp;
 }

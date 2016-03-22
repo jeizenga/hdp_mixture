@@ -103,7 +103,6 @@ void test_kmer_id(CuTest* ct) {
 }
 
 void create_flat_model(CuTest* ct) {
-    printf("flat\n");
     NanoporeHDP* nhdp = flat_hdp_model("ACGT", 4, 6, 1.0, 1.0, -1.0 ,1.0, 10,
                                        "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_model.model");
     update_nhdp_from_alignment(nhdp, "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_alignment.tsv",
@@ -114,7 +113,6 @@ void create_flat_model(CuTest* ct) {
 }
 
 void create_multiset_model(CuTest* ct) {
-    printf("multiset\n");
     NanoporeHDP* nhdp = multiset_hdp_model("ACGT", 4, 6, 1.0, 1.0, 1.0, -1.0 ,1.0, 10,
                                        "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_model.model");
     update_nhdp_from_alignment(nhdp, "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_alignment.tsv",
@@ -124,7 +122,6 @@ void create_multiset_model(CuTest* ct) {
 }
 
 void create_purine_model(CuTest* ct) {
-    printf("purine\n");
     NanoporeHDP* nhdp = purine_composition_hdp_model("AG", 2, "CT", 2, 6, 1.0, 1.0, 1.0, -1.0 ,1.0, 10,
                                                      "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_model.model");
     update_nhdp_from_alignment(nhdp, "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_alignment.tsv",
@@ -135,9 +132,19 @@ void create_purine_model(CuTest* ct) {
 }
 
 void create_middle_nts_model(CuTest* ct) {
-    printf("middle\n");
     NanoporeHDP* nhdp = middle_2_nts_hdp_model("ACGT", 4, 6, 1.0, 1.0, 1.0, -1.0 ,1.0, 10,
                                                "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_model.model");
+    update_nhdp_from_alignment(nhdp, "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_alignment.tsv",
+                               false);
+    
+    CuAssert(ct, "did not complete nhdp construction\n", true);
+    destroy_nanopore_hdp(nhdp);
+}
+
+void create_group_multiset_model(CuTest* ct) {
+    int64_t groups[] = {0, 1, 2, 3, 1, 1};
+    NanoporeHDP* nhdp = group_multiset_hdp_model("ACGTHM", groups, 6, 6, 1.0, 1.0, 1.0, -1.0 ,1.0, 10,
+                                                 "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_model.model");
     update_nhdp_from_alignment(nhdp, "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_alignment.tsv",
                                false);
     

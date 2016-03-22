@@ -7,8 +7,6 @@
 //
 
 #include <stdio.h>
-
-#include <stdio.h>
 #include <stdlib.h>
 #include <inttypes.h>
 #include "CuTest.h"

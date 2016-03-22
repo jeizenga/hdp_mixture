@@ -49,6 +49,13 @@ void normal_inverse_gamma_params(double* x, int64_t length, double* mu_out, doub
 void mle_normal_inverse_gamma_params(double* mus, double* taus, int64_t length, double* mu_0_out,
                                      double* nu_out, double* alpha_out, double* beta_out);
 
+double* matrix_mult(double* A, double* B, int64_t m, int64_t n, int64_t p);
+double* matrix_inverse(double* A, int64_t n);
+void lineq_solve(double* A, double* b, double* x_out, int64_t n);
+void max_pred_normal_inverse_gamma_params(double* x, int64_t length, double* mu_0_out,
+                                          double* nu_out, double* alpha_out, double* beta_out);
+void max_pred_normal_inverse_gamma_params_2(double* x, int64_t length, double ascent_rate, double* mu_0_out,
+                                            double* nu_out, double* alpha_out, double* beta_out, double tol);
 int64_t* stList_toIntPtr(stList* list, int64_t* length_out);
 double* stList_toDoublePtr(stList* list, int64_t* length_out);
 
