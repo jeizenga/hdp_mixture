@@ -73,8 +73,19 @@ int main()
         printf("median test 3 failed\n");
         exit(EXIT_FAILURE);
     }
+    
+    fprintf(stderr, "Beginning sort tests...\n");
 
     free(arr);
+    arr = (double*) malloc(sizeof(double) * 5);
+    arr[0] = 1.0; arr[1] = 0.0; arr[2] = 3.0; arr[3] = 2.0; arr[4] = 4.0;
+    quicksort_dbl(arr, 5);
+    for (int i = 0; i < 5; i++) {
+        if (arr[i] != (double) i) {
+            printf("sort test failed\n");
+            exit(EXIT_FAILURE);
+        }
+    }
     
     fprintf(stderr, "Beginning linspace tests...\n");
     

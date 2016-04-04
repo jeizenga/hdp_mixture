@@ -163,159 +163,6 @@ struct DistributionMetricMemo {
     double (*metric_func) (HierarchicalDirichletProcess*, int64_t, int64_t);
 };
 
-bool is_structure_finalized(HierarchicalDirichletProcess* hdp) {
-    return hdp->finalized;
-}
-
-bool is_gamma_random(HierarchicalDirichletProcess* hdp) {
-    return hdp->sample_gamma;
-}
-
-bool is_sampling_finalized(HierarchicalDirichletProcess* hdp) {
-    return hdp->splines_finalized;
-}
-
-bool are_data_pt_assignments_fuzzy(HierarchicalDirichletProcess* hdp) {
-    return hdp->fuzzy_assignments;
-}
-
-int64_t get_num_dir_proc(HierarchicalDirichletProcess* hdp) {
-    return hdp->num_dps;
-}
-
-int64_t get_depth(HierarchicalDirichletProcess* hdp) {
-    return hdp->depth;
-}
-
-int64_t get_num_data(HierarchicalDirichletProcess* hdp) {
-    return hdp->data_length;
-}
-
-//double* get_data_copy(HierarchicalDirichletProcess* hdp) {
-//    int64_t data_length = hdp->data_length;
-//    double* data = (double*) malloc(sizeof(double) * data_length);
-//    for (int64_t i = 0; i < data_length; i++) {
-//        data[i] = hdp->data[i];
-//    }
-//    return data;
-//}
-//
-//int64_t* get_data_pt_dp_ids_copy(HierarchicalDirichletProcess* hdp) {
-//    int64_t data_length = hdp->data_length;
-//    int64_t* dp_ids = (int64_t*) malloc(sizeof(int64_t) * data_length);
-//    for (int64_t i = 0; i < data_length; i++) {
-//        dp_ids[i] = hdp->data_pt_dp_id[i];
-//    }
-//    return dp_ids;
-//}
-
-double* get_gamma_params_copy(HierarchicalDirichletProcess* hdp) {
-    int64_t depth = hdp->depth;
-    double* gamma_params = (double*) malloc(sizeof(double) * depth);
-    for (int64_t i = 0; i < depth; i++) {
-        gamma_params[i] = hdp->gamma[i];
-    }
-    return gamma_params;
-}
-
-double get_mu(HierarchicalDirichletProcess* hdp) {
-    return hdp->mu;
-}
-
-double get_nu(HierarchicalDirichletProcess* hdp) {
-    return hdp->nu;
-}
-
-double get_alpha(HierarchicalDirichletProcess* hdp) {
-    return hdp->alpha;
-}
-
-double get_beta(HierarchicalDirichletProcess* hdp) {
-    return hdp->beta;
-}
-
-int64_t get_grid_length(HierarchicalDirichletProcess* hdp) {
-    return hdp->grid_length;
-}
-
-double* get_sampling_grid_copy(HierarchicalDirichletProcess* hdp) {
-    int64_t grid_length = hdp->grid_length;
-    double* sampling_grid = (double*) malloc(sizeof(double) * grid_length);
-    for (int64_t i = 0; i < grid_length; i++) {
-        sampling_grid[i] = hdp->sampling_grid[i];
-    }
-    return sampling_grid;
-}
-
-double* get_gamma_alpha_params_copy(HierarchicalDirichletProcess* hdp) {
-    if (!hdp->sample_gamma) {
-        fprintf(stderr, "Hierarchical Dirichlet process is not sampling gamma parameters.");
-        exit(EXIT_FAILURE);
-    }
-    int64_t depth = hdp->depth;
-    double* gamma_alpha = (double*) malloc(sizeof(double) * depth);
-    for (int64_t i = 0; i < depth; i++) {
-        gamma_alpha[i] = hdp->gamma_alpha[i];
-    }
-    return gamma_alpha;
-}
-
-double* get_gamma_beta_params_copy(HierarchicalDirichletProcess* hdp) {
-    if (!hdp->sample_gamma) {
-        fprintf(stderr, "Hierarchical Dirichlet process is not sampling gamma parameters.");
-        exit(EXIT_FAILURE);
-    }
-    int64_t depth = hdp->depth;
-    double* gamma_beta = (double*) malloc(sizeof(double) * depth);
-    for (int64_t i = 0; i < depth; i++) {
-        gamma_beta[i] = hdp->gamma_beta[i];
-    }
-    return gamma_beta;
-}
-
-int64_t get_dir_proc_num_factors(HierarchicalDirichletProcess* hdp, int64_t dp_id) {
-    if (dp_id < 0 || dp_id >= hdp->num_dps) {
-        fprintf(stderr, "Hierarchical Dirichlet process has no Dirichlet process with this ID.\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    DirichletProcess* dp = hdp->dps[dp_id];
-    return stSet_size(dp->factors);
-}
-
-int64_t get_dir_proc_parent_id(HierarchicalDirichletProcess* hdp, int64_t dp_id) {
-    if (dp_id < 0 || dp_id >= hdp->num_dps) {
-        fprintf(stderr, "Hierarchical Dirichlet process has no Dirichlet process with this ID.\n");
-        exit(EXIT_FAILURE);
-    }
-    
-    DirichletProcess* dp = hdp->dps[dp_id];
-    if (dp->parent == NULL) {
-        return -1;
-    }
-    else {
-        return dp->parent->id;
-    }
-}
-
-void get_dp_depths_internal(int64_t* dp_depths, DirichletProcess* dp, int64_t depth) {
-    dp_depths[dp->id] = depth;
-    
-    stListIterator* dp_child_iter = stList_getIterator(dp->children);
-    DirichletProcess* dp_child = stList_getNext(dp_child_iter);
-    while (dp_child != NULL) {
-        get_dp_depths_internal(dp_depths, dp_child, depth + 1);
-        dp_child = stList_getNext(dp_child_iter);
-    }
-    stList_destructIterator(dp_child_iter);
-}
-
-int64_t* get_dp_depths(HierarchicalDirichletProcess* hdp) {
-    int64_t* dp_depths = (int64_t*) malloc(sizeof(int64_t) * hdp->num_dps);
-    get_dp_depths_internal(dp_depths, hdp->base_dp, 0);
-    return dp_depths;
-}
-
 DistributionMetricMemo* new_distr_metric_memo(HierarchicalDirichletProcess* hdp,
                                               double (*metric_func) (HierarchicalDirichletProcess*, int64_t, int64_t)) {
     DistributionMetricMemo* memo = (DistributionMetricMemo*) malloc(sizeof(DistributionMetricMemo));
@@ -481,11 +328,9 @@ void destroy_factor(Factor* fctr) {
     Factor* parent = NULL;
     stSet* children = NULL;
     DirichletProcess* dp = NULL;
-    //printf("finding factor type:\n");
     switch (fctr->factor_type) {
         case BASE:
         {
-            //printf("base\n");
             BaseFactorData* fctr_data = (BaseFactorData*) fctr->factor_data;
             dp = fctr_data->dp;
             children = fctr_data->children;
@@ -494,7 +339,6 @@ void destroy_factor(Factor* fctr) {
             
         case MIDDLE:
         {
-            //printf("middle\n");
             MiddleFactorData* fctr_data = (MiddleFactorData*) fctr->factor_data;
             dp = fctr_data->dp;
             parent = fctr_data->parent;
@@ -504,7 +348,6 @@ void destroy_factor(Factor* fctr) {
             
         case DATA_PT:
         {
-            //printf("data pt\n");
             DataPtFactorData* fctr_data = (DataPtFactorData*) fctr->factor_data;
             parent = fctr_data->parent;
             break;
@@ -512,7 +355,6 @@ void destroy_factor(Factor* fctr) {
         
         case FUZZY_DATA_PT:
         {
-            //printf("fuzzy\n");
             FuzzyDataPtFactorData* fctr_data = (FuzzyDataPtFactorData*) fctr->factor_data;
             parent = fctr_data->parent;
             free(fctr_data->fuzzy_dps);
@@ -528,11 +370,9 @@ void destroy_factor(Factor* fctr) {
         }
     }
     
-    //printf("free factor data\n");
     free(fctr->factor_data);
     
     if (children != NULL) {
-        //printf("destroy child set\n");
         if (stSet_size(children) > 0) {
             fprintf(stderr, "Attempted to destroy factor that still has children.\n");
             exit(EXIT_FAILURE);
@@ -541,12 +381,9 @@ void destroy_factor(Factor* fctr) {
     }
 
     if (parent != NULL) {
-        //printf("updating parent\n");
         stSet* parents_children = get_factor_children(parent);
-        //printf("removing from parent set\n");
         stSet_remove(parents_children, (void*) fctr);
         DirichletProcess* parent_dp = get_factor_dir_proc(parent);
-        //printf("decrementing\n");
         (parent_dp  ->num_factor_children)--;
         if (stSet_size(parents_children) == 0) {
             destroy_factor(parent);
@@ -554,7 +391,6 @@ void destroy_factor(Factor* fctr) {
     }
 
     if (dp != NULL) {
-        //printf("removing from dp\n");
         stSet_remove(dp->factors, (void*) fctr);
     }
 
@@ -698,6 +534,255 @@ Factor** get_factor_parent_ptr(Factor* fctr) {
     }
     return parent_ptr;
 }
+
+
+bool is_structure_finalized(HierarchicalDirichletProcess* hdp) {
+    return hdp->finalized;
+}
+
+bool is_gamma_random(HierarchicalDirichletProcess* hdp) {
+    return hdp->sample_gamma;
+}
+
+bool is_sampling_finalized(HierarchicalDirichletProcess* hdp) {
+    return hdp->splines_finalized;
+}
+
+bool are_data_pt_assignments_fuzzy(HierarchicalDirichletProcess* hdp) {
+    return hdp->fuzzy_assignments;
+}
+
+int64_t get_num_dir_proc(HierarchicalDirichletProcess* hdp) {
+    return hdp->num_dps;
+}
+
+int64_t get_depth(HierarchicalDirichletProcess* hdp) {
+    return hdp->depth;
+}
+
+int64_t get_num_data(HierarchicalDirichletProcess* hdp) {
+    return hdp->data_length;
+}
+
+void get_data_copy_internal(double* data, int64_t* i, Factor* fctr) {
+    if (fctr->factor_type == DATA_PT || fctr->factor_type == FUZZY_DATA_PT) {
+        data[*i] = get_factor_data_pt(fctr);
+        (*i)++;
+    }
+    else {
+        stSetIterator* child_iter = stSet_getIterator(get_factor_children(fctr));
+        Factor* child_fctr = stSet_getNext(child_iter);
+        while (child_fctr != NULL) {
+            get_data_copy_internal(data, i, child_fctr);
+            child_fctr = stSet_getNext(child_iter);
+        }
+        
+    }
+}
+
+double* get_data_copy(HierarchicalDirichletProcess* hdp) {
+    int64_t data_length = hdp->data_length;
+    if (data_length == 0) {
+        return NULL;
+    }
+    
+    double* data = (double*) malloc(sizeof(double) * data_length);
+    
+    int64_t i = 0;
+    stSetIterator* base_fctr_iter = stSet_getIterator(hdp->base_dp->factors);
+    Factor* base_fctr = stSet_getNext(base_fctr_iter);
+    while (base_fctr != NULL) {
+        get_data_copy_internal(data, &i, base_fctr);
+        base_fctr = stSet_getNext(base_fctr_iter);
+    }
+    
+    return data;
+}
+
+void get_data_pt_dp_ids_copy_internal(int64_t* dp_ids, int64_t* i, int64_t parent_dp_id, Factor* fctr) {
+    if (fctr->factor_type == DATA_PT || fctr->factor_type == FUZZY_DATA_PT) {
+        dp_ids[*i] = parent_dp_id;
+        (*i)++;
+    }
+    else {
+        stSetIterator* child_iter = stSet_getIterator(get_factor_children(fctr));
+        Factor* child_fctr = stSet_getNext(child_iter);
+        DirichletProcess* dp = get_factor_dir_proc(fctr);
+        int64_t dp_id = dp->id;
+        while (child_fctr != NULL) {
+            get_data_pt_dp_ids_copy_internal(dp_ids, i, dp_id, child_fctr);
+            child_fctr = stSet_getNext(child_iter);
+        }
+    }
+}
+
+int64_t* get_data_pt_dp_ids_copy(HierarchicalDirichletProcess* hdp) {
+    int64_t data_length = hdp->data_length;
+    if (data_length == 0) {
+        return NULL;
+    }
+    
+    int64_t* dp_ids = (int64_t*) malloc(sizeof(int64_t) * data_length);
+    
+    int64_t i = 0;
+    stSetIterator* base_fctr_iter = stSet_getIterator(hdp->base_dp->factors);
+    Factor* base_fctr = stSet_getNext(base_fctr_iter);
+    while (base_fctr != NULL) {
+        DirichletProcess* dp = get_factor_dir_proc(base_fctr);
+        int64_t dp_id = dp->id;
+        get_data_pt_dp_ids_copy_internal(dp_ids, &i, dp_id, base_fctr);
+        base_fctr = stSet_getNext(base_fctr_iter);
+    }
+    
+    return dp_ids;
+}
+
+void get_data_pt_num_fuzzy_dps_copy_internal(int64_t* num_fuzzy_dps, int64_t* i, Factor* fctr) {
+    if (fctr->factor_type == DATA_PT) {
+        fprintf(stderr, "Attempting to access fuzzy assignments of non-fuzzy data point factor.\n");
+        exit(EXIT_FAILURE);
+    }
+    else if (fctr->factor_type == FUZZY_DATA_PT) {
+        FuzzyDataPtFactorData* fctr_data = (FuzzyDataPtFactorData*) fctr->factor_data;
+        num_fuzzy_dps[*i] = fctr_data->num_fuzzy_dps;
+        (*i)++;
+    }
+    else {
+        stSetIterator* child_iter = stSet_getIterator(get_factor_children(fctr));
+        Factor* child_fctr = stSet_getNext(child_iter);
+        while (child_fctr != NULL) {
+            get_data_pt_num_fuzzy_dps_copy_internal(num_fuzzy_dps, i, child_fctr);
+            child_fctr = stSet_getNext(child_iter);
+        }
+    }
+}
+
+int64_t* get_data_pt_num_fuzzy_dps_copy(HierarchicalDirichletProcess* hdp) {
+    int64_t data_length = hdp->data_length;
+    if (data_length == 0) {
+        return NULL;
+    }
+    
+    int64_t* num_fuzzy_dps = (int64_t*) malloc(sizeof(int64_t) * data_length);
+    
+    int64_t i = 0;
+    stSetIterator* base_fctr_iter = stSet_getIterator(hdp->base_dp->factors);
+    Factor* base_fctr = stSet_getNext(base_fctr_iter);
+    while (base_fctr != NULL) {
+        get_data_pt_num_fuzzy_dps_copy_internal(num_fuzzy_dps, &i, base_fctr);
+        base_fctr = stSet_getNext(base_fctr_iter);
+    }
+    
+    return num_fuzzy_dps;
+}
+
+double* get_gamma_params_copy(HierarchicalDirichletProcess* hdp) {
+    int64_t depth = hdp->depth;
+    double* gamma_params = (double*) malloc(sizeof(double) * depth);
+    for (int64_t i = 0; i < depth; i++) {
+        gamma_params[i] = hdp->gamma[i];
+    }
+    return gamma_params;
+}
+
+double get_mu(HierarchicalDirichletProcess* hdp) {
+    return hdp->mu;
+}
+
+double get_nu(HierarchicalDirichletProcess* hdp) {
+    return hdp->nu;
+}
+
+double get_alpha(HierarchicalDirichletProcess* hdp) {
+    return hdp->alpha;
+}
+
+double get_beta(HierarchicalDirichletProcess* hdp) {
+    return hdp->beta;
+}
+
+int64_t get_grid_length(HierarchicalDirichletProcess* hdp) {
+    return hdp->grid_length;
+}
+
+double* get_sampling_grid_copy(HierarchicalDirichletProcess* hdp) {
+    int64_t grid_length = hdp->grid_length;
+    double* sampling_grid = (double*) malloc(sizeof(double) * grid_length);
+    for (int64_t i = 0; i < grid_length; i++) {
+        sampling_grid[i] = hdp->sampling_grid[i];
+    }
+    return sampling_grid;
+}
+
+double* get_gamma_alpha_params_copy(HierarchicalDirichletProcess* hdp) {
+    if (!hdp->sample_gamma) {
+        fprintf(stderr, "Hierarchical Dirichlet process is not sampling gamma parameters.");
+        exit(EXIT_FAILURE);
+    }
+    int64_t depth = hdp->depth;
+    double* gamma_alpha = (double*) malloc(sizeof(double) * depth);
+    for (int64_t i = 0; i < depth; i++) {
+        gamma_alpha[i] = hdp->gamma_alpha[i];
+    }
+    return gamma_alpha;
+}
+
+double* get_gamma_beta_params_copy(HierarchicalDirichletProcess* hdp) {
+    if (!hdp->sample_gamma) {
+        fprintf(stderr, "Hierarchical Dirichlet process is not sampling gamma parameters.");
+        exit(EXIT_FAILURE);
+    }
+    int64_t depth = hdp->depth;
+    double* gamma_beta = (double*) malloc(sizeof(double) * depth);
+    for (int64_t i = 0; i < depth; i++) {
+        gamma_beta[i] = hdp->gamma_beta[i];
+    }
+    return gamma_beta;
+}
+
+int64_t get_dir_proc_num_factors(HierarchicalDirichletProcess* hdp, int64_t dp_id) {
+    if (dp_id < 0 || dp_id >= hdp->num_dps) {
+        fprintf(stderr, "Hierarchical Dirichlet process has no Dirichlet process with this ID.\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    DirichletProcess* dp = hdp->dps[dp_id];
+    return stSet_size(dp->factors);
+}
+
+int64_t get_dir_proc_parent_id(HierarchicalDirichletProcess* hdp, int64_t dp_id) {
+    if (dp_id < 0 || dp_id >= hdp->num_dps) {
+        fprintf(stderr, "Hierarchical Dirichlet process has no Dirichlet process with this ID.\n");
+        exit(EXIT_FAILURE);
+    }
+    
+    DirichletProcess* dp = hdp->dps[dp_id];
+    if (dp->parent == NULL) {
+        return -1;
+    }
+    else {
+        return dp->parent->id;
+    }
+}
+
+void get_dp_depths_internal(int64_t* dp_depths, DirichletProcess* dp, int64_t depth) {
+    dp_depths[dp->id] = depth;
+    
+    stListIterator* dp_child_iter = stList_getIterator(dp->children);
+    DirichletProcess* dp_child = stList_getNext(dp_child_iter);
+    while (dp_child != NULL) {
+        get_dp_depths_internal(dp_depths, dp_child, depth + 1);
+        dp_child = stList_getNext(dp_child_iter);
+    }
+    stList_destructIterator(dp_child_iter);
+}
+
+int64_t* get_dp_depths(HierarchicalDirichletProcess* hdp) {
+    int64_t* dp_depths = (int64_t*) malloc(sizeof(int64_t) * hdp->num_dps);
+    get_dp_depths_internal(dp_depths, hdp->base_dp, 0);
+    return dp_depths;
+}
+
 
 void get_factor_sum_internal(Factor* fctr, double* sum, int64_t* num_data) {
     if (fctr->factor_type == DATA_PT || fctr->factor_type == FUZZY_DATA_PT) {
@@ -1880,7 +1965,6 @@ void reset_hdp_data(HierarchicalDirichletProcess* hdp) {
 }
 
 void unassign_from_parent(Factor* fctr) {
-    //printf("getting parent factor\n");
     Factor* parent;
     switch (fctr->factor_type) {
         case MIDDLE:
@@ -1911,23 +1995,17 @@ void unassign_from_parent(Factor* fctr) {
         }
     }
     
-    //printf("getting parent dp\n");
     DirichletProcess* parent_dp = get_factor_dir_proc(parent);
     
-    //printf("getting base factor\n");
     Factor* base_fctr = get_base_factor(parent);
-    //printf("getting base dp\n");
     DirichletProcess* base_dp = get_factor_dir_proc(base_fctr);
     
     stSet* parents_children = get_factor_children(parent);
     
-    //printf("removing from set\n");
     stSet_remove(parents_children, (void*) fctr);
-    //printf("decrementing count\n");
     (parent_dp->num_factor_children)--;
     
     if (stSet_size(parents_children) == 0) {
-        //printf("destroying parent factor\n");
         destroy_factor(parent);
     }
 
@@ -1935,16 +2013,13 @@ void unassign_from_parent(Factor* fctr) {
     double mean_reassign;
     double sum_sq_devs;
     
-    //printf("getting stats\n");
     get_factor_stats(fctr, &mean_reassign, &sum_sq_devs, &num_reassign);
     
     // check to see if base factor has been destroyed
     if (stSet_search(base_dp->factors, (void*) base_fctr) != NULL) {
-        //printf("updating params\n");
         remove_update_base_factor_params(base_fctr, mean_reassign, sum_sq_devs, (double) num_reassign);
     }
     
-    //printf("caching stats\n");
     if (fctr->factor_type == MIDDLE) {
         DirichletProcess* dp = get_factor_dir_proc(fctr);
         dp->cached_factor_mean = mean_reassign;
@@ -2264,20 +2339,15 @@ Factor* sample_factor(Factor* fctr, DirichletProcess* dp) {
 }
 
 void gibbs_factor_iteration(Factor* fctr) {
-    //printf("getting parent dp\n");
     DirichletProcess* parent_dp;
-    if (fctr->factor_type != FUZZY_DATA_PT) {
-        parent_dp = get_factor_dir_proc(get_factor_parent(fctr));
-    }
-    else {
+    if (fctr->factor_type == FUZZY_DATA_PT) {
         parent_dp = sample_fuzzy_data_pt_dp_assignment(fctr);
     }
-    
-    //printf("unassigning from parent\n");
+    else {
+        parent_dp = get_factor_dir_proc(get_factor_parent(fctr));
+    }
     unassign_from_parent(fctr);
-    //printf("sampling new parent\n");
     Factor* new_parent = sample_factor(fctr, parent_dp);
-    //printf("assigning to new parent\n");
     assign_to_parent(fctr, new_parent, true);
 }
 
@@ -2355,7 +2425,6 @@ void take_distr_sample(HierarchicalDirichletProcess* hdp) {
     int64_t length = hdp->grid_length;
     double* pdf = (double*) malloc(sizeof(double) * length);
     
-    //printf("number of base factors: %"PRId64", num data: %"PRId64"\n", stSet_size(base_dp->factors), hdp->data_length);
     stSetIterator* base_fctr_iter = stSet_getIterator(base_dp->factors);
     Factor* base_fctr = (Factor*) stSet_getNext(base_fctr_iter);
     while (base_fctr != NULL) {
@@ -2394,10 +2463,8 @@ void sample_dp_factors(DirichletProcess* dp, int64_t* iter_counter, int64_t burn
                        int64_t* sample_counter, int64_t num_samples) {
     
     if (!dp->observed) {
-        //printf("dp %"PRId64" is unobserved, not sampling\n", dp->id);
         return;
     }
-    //printf("sampling factors from dp %"PRId64"\n", dp->id);
     int64_t iter = *iter_counter;
     int64_t samples_taken = *sample_counter;
     
@@ -2407,7 +2474,6 @@ void sample_dp_factors(DirichletProcess* dp, int64_t* iter_counter, int64_t burn
     Factor** sampling_fctrs = (Factor**) malloc(sizeof(Factor*) * num_factor_children);
     int64_t i = 0;
     
-    //printf("allocating array of factors\n");
     stSetIterator* fctr_iter = stSet_getIterator(dp->factors);
     Factor* fctr = (Factor*) stSet_getNext(fctr_iter);
     stSetIterator* child_fctr_iter;
@@ -2425,16 +2491,13 @@ void sample_dp_factors(DirichletProcess* dp, int64_t* iter_counter, int64_t burn
     }
     stSet_destructIterator(fctr_iter);
     
-    //printf("sampling\n");
     for (int64_t j = 0; j < num_factor_children; j++) {
-        //printf("sampling factor %"PRId64"\n", j);
         gibbs_factor_iteration(sampling_fctrs[j]);
         iter++;
         
         if (iter % thinning == 0) {
             
             if (iter > burn_in) {
-                //printf("taking distribution sample\n");
                 take_distr_sample(dp->hdp);
                 samples_taken++;
                 
@@ -2448,7 +2511,6 @@ void sample_dp_factors(DirichletProcess* dp, int64_t* iter_counter, int64_t burn
     
     *sample_counter = samples_taken;
     *iter_counter = iter;
-    //printf("finished sampling from dp %"PRId64"\n", dp->id);
 }
 
 double sample_auxilliary_w(DirichletProcess* dp) {
@@ -2815,11 +2877,9 @@ void execute_gibbs_sampling_with_snapshots(HierarchicalDirichletProcess* hdp, in
         if (snapshot_func != NULL) {
             snapshot_func(hdp, snapshot_func_args);
         }
-        //printf("get shuffled dps\n");
         sampling_dps = get_shuffled_dps(hdp);
         
         for (int64_t i = 0; i < num_dps; i++) {
-            //printf("sampling dp factors\n");
             sample_dp_factors(sampling_dps[i], &iter_counter, burn_in, thinning,
                               &sample_counter, num_samples);
             if (sample_counter >= num_samples) {
@@ -2994,7 +3054,6 @@ double hellinger_distance(double* x, double* distr_1, double* distr_2, int64_t l
         left_pt = right_pt;
     }
     
-    //printf("integral = %lf\n", integral);
     return sqrt(1.0 - integral);
 }
 

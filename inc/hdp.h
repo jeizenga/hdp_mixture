@@ -60,11 +60,13 @@ void take_snapshot(HierarchicalDirichletProcess* hdp, int64_t** num_dp_fctrs_out
 bool is_structure_finalized(HierarchicalDirichletProcess* hdp);
 bool is_gamma_random(HierarchicalDirichletProcess* hdp);
 bool is_sampling_finalized(HierarchicalDirichletProcess* hdp);
+bool are_data_pt_assignments_fuzzy(HierarchicalDirichletProcess* hdp);
 int64_t get_num_dir_proc(HierarchicalDirichletProcess* hdp);
 int64_t get_depth(HierarchicalDirichletProcess* hdp);
 int64_t get_num_data(HierarchicalDirichletProcess* hdp);
-//double* get_data_copy(HierarchicalDirichletProcess* hdp);
-//int64_t* get_data_pt_dp_ids_copy(HierarchicalDirichletProcess* hdp);
+double* get_data_copy(HierarchicalDirichletProcess* hdp);
+int64_t* get_data_pt_dp_ids_copy(HierarchicalDirichletProcess* hdp);
+int64_t* get_data_pt_num_fuzzy_dps_copy(HierarchicalDirichletProcess* hdp);
 double* get_gamma_params_copy(HierarchicalDirichletProcess* hdp);
 double get_mu(HierarchicalDirichletProcess* hdp);
 double get_nu(HierarchicalDirichletProcess* hdp);

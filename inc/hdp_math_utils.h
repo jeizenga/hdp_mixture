@@ -25,6 +25,9 @@ double add_logs(double log_x, double log_y);
 double median(double* arr, int64_t length);
 double max(double* arr, int64_t length);
 
+void quicksort_dbl(double* arr, int64_t length);
+void quicksort_int(int64_t* arr, int64_t length);
+
 // returns the index of the first element of arr greater or equal to x, assuming arr is sorted
 // returns final index if x is greater than all elements of arr
 int64_t bisect_left(double x, double* arr, int64_t length);

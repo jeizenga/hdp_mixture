@@ -365,6 +365,78 @@ double median(double* arr, int64_t length) {
     return quickselect(arr, length, length / 2);
 }
 
+void quicksort_dbl_internal(double* arr, int64_t length, int64_t low, int64_t hi) {
+    if (hi <= low) {
+        return;
+    }
+    
+    int64_t pivot = low + (rand() % (hi - low + 1));
+    // remove pivot
+    double temp = arr[pivot];
+    arr[pivot] = arr[hi];
+    arr[hi] = temp;
+    
+    // partition array
+    pivot = low;
+    for (int64_t i = low; i < hi; i++) {
+        
+        if (arr[i] < arr[hi]) {
+            temp = arr[i];
+            arr[i] = arr[pivot];
+            arr[pivot] = temp;
+            pivot++;
+        }
+    }
+    
+    // put pivot back in place
+    temp = arr[pivot];
+    arr[pivot] = arr[hi];
+    arr[hi] = temp;
+    
+    quicksort_dbl_internal(arr, length, low, pivot - 1);
+    quicksort_dbl_internal(arr, length, pivot + 1, hi);
+}
+
+void quicksort_dbl(double* arr, int64_t length) {
+    quicksort_dbl_internal(arr, length, 0, length - 1);
+}
+
+void quicksort_int_internal(int64_t* arr, int64_t length, int64_t low, int64_t hi) {
+    if (hi <= low) {
+        return;
+    }
+    
+    int64_t pivot = low + (rand() % (hi - low + 1));
+    // remove pivot
+    int64_t temp = arr[pivot];
+    arr[pivot] = arr[hi];
+    arr[hi] = temp;
+    
+    // partition array
+    pivot = low;
+    for (int64_t i = low; i < hi; i++) {
+        
+        if (arr[i] < arr[hi]) {
+            temp = arr[i];
+            arr[i] = arr[pivot];
+            arr[pivot] = temp;
+            pivot++;
+        }
+    }
+    
+    // put pivot back in place
+    temp = arr[pivot];
+    arr[pivot] = arr[hi];
+    arr[hi] = temp;
+    
+    quicksort_int_internal(arr, length, low, pivot - 1);
+    quicksort_int_internal(arr, length, pivot + 1, hi);
+}
+
+void quicksort_int(int64_t* arr, int64_t length) {
+    quicksort_int_internal(arr, length, 0, length - 1);
+}
+
 double max(double* arr, int64_t length) {
     double curr_max = arr[0];
     for (int64_t i = 1; i < length; i++) {

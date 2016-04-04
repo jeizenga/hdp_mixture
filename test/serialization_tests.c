@@ -19,6 +19,8 @@ void add_hdp_copy_tests(CuTest* ct, HierarchicalDirichletProcess* original_hdp,
     
     CuAssertIntEquals_Msg(ct, "struct finalized fail, check output .hdp files",
                           (int) is_structure_finalized(original_hdp), (int) is_structure_finalized(copy_hdp));
+    CuAssertIntEquals_Msg(ct, "fuzzy assignments fail, check output .hdp files",
+                          (int) are_data_pt_assignments_fuzzy(original_hdp), (int) are_data_pt_assignments_fuzzy(copy_hdp));
     CuAssertIntEquals_Msg(ct, "sampling gamma fail, check output .hdp files",
                           (int) is_gamma_random(original_hdp), (int) is_gamma_random(copy_hdp));
     CuAssertIntEquals_Msg(ct, "distr finalized fail, check output .hdp files",
@@ -41,27 +43,44 @@ void add_hdp_copy_tests(CuTest* ct, HierarchicalDirichletProcess* original_hdp,
     CuAssertDblEquals_Msg(ct, "beta fail, check output .hdp files",
                           get_beta(original_hdp), get_beta(copy_hdp), 0.000001);
     
-//    int64_t num_data = get_num_data(original_hdp);
+    int64_t num_data = get_num_data(original_hdp);
     int64_t grid_length = get_grid_length(original_hdp);
     int64_t num_dps = get_num_dir_proc(original_hdp);
     
-//    double* original_data = get_data_copy(original_hdp);
-//    double* copy_data = get_data_copy(copy_hdp);
+    double* original_data = get_data_copy(original_hdp);
+    double* copy_data = get_data_copy(copy_hdp);
     
-//    int64_t* original_dp_ids = get_data_pt_dp_ids_copy(original_hdp);
-//    int64_t* copy_dp_ids = get_data_pt_dp_ids_copy(copy_hdp);
+    quicksort_dbl(original_data, num_data);
+    quicksort_dbl(copy_data, num_data);
     
-//    for (int64_t i = 0; i < num_data; i++) {
-//        CuAssertIntEquals_Msg(ct, "data pt dp id fail, check output .hdp files",
-//                              (int) original_dp_ids[i], (int) copy_dp_ids[i]);
-//        CuAssertDblEquals_Msg(ct, "data pt fail, check output .hdp files",
-//                              original_data[i], copy_data[i], 0.000001);
-//    }
+    int64_t* original_dp_ids = get_data_pt_dp_ids_copy(original_hdp);
+    int64_t* copy_dp_ids = get_data_pt_dp_ids_copy(copy_hdp);
     
-//    free(original_data);
-//    free(copy_data);
-//    free(original_dp_ids);
-//    free(copy_dp_ids);
+    quicksort_int(original_dp_ids, num_data);
+    quicksort_int(copy_dp_ids, num_data);
+    
+    for (int64_t i = 0; i < num_data; i++) {
+        CuAssertIntEquals_Msg(ct, "data pt dp id fail, check output .hdp files",
+                              (int) original_dp_ids[i], (int) copy_dp_ids[i]);
+        CuAssertDblEquals_Msg(ct, "data pt fail, check output .hdp files",
+                              original_data[i], copy_data[i], 0.00000001);
+    }
+    
+    free(original_data);
+    free(copy_data);
+    free(original_dp_ids);
+    free(copy_dp_ids);
+    
+    if (are_data_pt_assignments_fuzzy(original_hdp)) {
+        int64_t* original_num_fuzzy_dps = get_data_pt_num_fuzzy_dps_copy(original_hdp);
+        int64_t* copy_num_fuzzy_dps = get_data_pt_num_fuzzy_dps_copy(copy_hdp);
+        quicksort_int(original_num_fuzzy_dps, num_data);
+        quicksort_int(copy_num_fuzzy_dps, num_data);
+        for (int64_t i = 0; i < num_data; i++) {
+            CuAssertIntEquals_Msg(ct, "data pt num fuzzy dps fail, check output .hdp files",
+                                  (int) original_num_fuzzy_dps[i], (int) copy_num_fuzzy_dps[i]);
+        }
+    }
     
     int64_t original_num_dps;
     int64_t* original_num_dp_fctrs;
@@ -153,19 +172,32 @@ void test_serialization(CuTest* ct) {
     
     FILE* data_file = fopen("/Users/Jordan/Documents/GitHub/hdp_mixture/test/data.txt","r");
     FILE* dp_id_file = fopen("/Users/Jordan/Documents/GitHub/hdp_mixture/test/dps.txt", "r");
+    FILE* fuzzy_dp_id_file = fopen("/Users/Jordan/Documents/GitHub/hdp_mixture/test/fuzzy_dps.txt", "r");
+    FILE* fuzzy_dp_prob_file = fopen("/Users/Jordan/Documents/GitHub/hdp_mixture/test/fuzzy_dp_probs.txt", "r");
     
     stList* data_list = stList_construct3(0, free);
     stList* dp_id_list = stList_construct3(0, free);
+    stList* num_fuzzy_dps_list = stList_construct3(0, *free);
+    stList* fuzzy_dp_id_list = stList_construct();
+    stList* fuzzy_dp_prob_list = stList_construct();
     
     char* data_line = stFile_getLineFromFile(data_file);
     char* dp_id_line = stFile_getLineFromFile(dp_id_file);
+    char* fuzzy_dp_id_line = stFile_getLineFromFile(fuzzy_dp_id_file);
+    char* fuzzy_dp_prob_line = stFile_getLineFromFile(fuzzy_dp_prob_file);
     
     double* datum_ptr;
     int64_t* dp_id_ptr;
+    int64_t* num_fuzzy_dp_ptr;
+    stList* line_list;
+    int64_t num_fuzzy_dp;
+    int64_t* data_pt_fuzzy_dp_ids;
+    double* data_pt_fuzzy_dp_probs;
     while (data_line != NULL) {
         
         datum_ptr = (double*) malloc(sizeof(double));
         dp_id_ptr = (int64_t*) malloc(sizeof(int64_t));
+        num_fuzzy_dp_ptr = (int64_t*) malloc(sizeof(int64_t));
         
         sscanf(data_line, "%lf", datum_ptr);
         sscanf(dp_id_line, "%"SCNd64, dp_id_ptr);
@@ -175,18 +207,59 @@ void test_serialization(CuTest* ct) {
             stList_append(dp_id_list, dp_id_ptr);
         }
         
+        line_list = stString_split(fuzzy_dp_id_line);
+        num_fuzzy_dp = stList_length(line_list);
+        *num_fuzzy_dp_ptr = num_fuzzy_dp;
+        
+        stList_append(num_fuzzy_dps_list, num_fuzzy_dp_ptr);
+        data_pt_fuzzy_dp_ids = (int64_t*) malloc(sizeof(int64_t) * num_fuzzy_dp);
+        for (int64_t i = 0; i < num_fuzzy_dp; i++) {
+            sscanf(stList_get(line_list, i), "%"SCNd64, &(data_pt_fuzzy_dp_ids[i]));
+        }
+        stList_append(fuzzy_dp_id_list, data_pt_fuzzy_dp_ids);
+        stList_destruct(line_list);
+        
+        line_list = stString_split(fuzzy_dp_prob_line);
+        num_fuzzy_dp = stList_length(line_list);
+        
+        data_pt_fuzzy_dp_probs = (double*) malloc(sizeof(double) * num_fuzzy_dp);
+        for (int64_t i = 0; i < num_fuzzy_dp; i++) {
+            sscanf(stList_get(line_list, i), "%lf", &(data_pt_fuzzy_dp_probs[i]));
+        }
+        stList_append(fuzzy_dp_prob_list, data_pt_fuzzy_dp_probs);
+        stList_destruct(line_list);
+        
+        
         free(data_line);
         data_line = stFile_getLineFromFile(data_file);
         
         free(dp_id_line);
         dp_id_line = stFile_getLineFromFile(dp_id_file);
+        
+        free(fuzzy_dp_id_line);
+        fuzzy_dp_id_line = stFile_getLineFromFile(fuzzy_dp_id_file);
+        
+        free(fuzzy_dp_prob_line);
+        fuzzy_dp_prob_line = stFile_getLineFromFile(fuzzy_dp_prob_file);
     }
     
     int64_t data_length;
     int64_t dp_ids_length;
+    int64_t num_fuzzy_dps_length;
     
     double* data = stList_toDoublePtr(data_list, &data_length);
+    double* fuzzy_data = stList_toDoublePtr(data_list, &data_length);
     int64_t* dp_ids = stList_toIntPtr(dp_id_list, &dp_ids_length);
+    int64_t* num_fuzzy_dps = stList_toIntPtr(num_fuzzy_dps_list, &num_fuzzy_dps_length);
+    
+    int64_t num_fuzzy_data = stList_length(fuzzy_dp_id_list);
+    
+    int64_t** fuzzy_dp_ids = (int64_t**) malloc(sizeof(int64_t) * num_fuzzy_data);
+    double** fuzzy_dp_probs = (double**) malloc(sizeof(double) * num_fuzzy_data);
+    for (int64_t i = 0; i < num_fuzzy_data; i++) {
+        fuzzy_dp_ids[i] = (int64_t*) stList_get(fuzzy_dp_id_list, i);
+        fuzzy_dp_probs[i] = (double*) stList_get(fuzzy_dp_prob_list, i);
+    }
     
     fclose(data_file);
     fclose(dp_id_file);
@@ -203,6 +276,7 @@ void test_serialization(CuTest* ct) {
     double grid_start = -10.0;
     double grid_end = 10.0;
     
+    // construct hdp with gamma prior on concentration
     double* gamma_alpha = (double*) malloc(sizeof(double) * depth);
     gamma_alpha[0] = 1.0; gamma_alpha[1] = 1.0; gamma_alpha[2] = 2.0;
     double* gamma_beta = (double*) malloc(sizeof(double) * depth);
@@ -228,6 +302,7 @@ void test_serialization(CuTest* ct) {
     FILE* main_file;
     FILE* copy_file;
     
+    // write and read back, check for identity
     main_file = fopen(filepath, "w");
     serialize_hdp(original_hdp, main_file);
     fclose(main_file);
@@ -241,6 +316,7 @@ void test_serialization(CuTest* ct) {
     destroy_hier_dir_proc(copy_hdp);
     remove(copy_filepath);
     
+    // give data, write and read back, check for identity
     pass_data_to_hdp(original_hdp, data, dp_ids, data_length);
     main_file = fopen(filepath, "w");
     serialize_hdp(original_hdp, main_file);
@@ -255,6 +331,8 @@ void test_serialization(CuTest* ct) {
     destroy_hier_dir_proc(copy_hdp);
     remove(copy_filepath);
     
+    
+    // execute gibbs sampling, write and read back, check for identity
     execute_gibbs_sampling(original_hdp, 10, 10, 10, false);
     finalize_distributions(original_hdp);
     main_file = fopen(filepath, "w");
@@ -270,8 +348,40 @@ void test_serialization(CuTest* ct) {
     destroy_hier_dir_proc(copy_hdp);
     remove(copy_filepath);
     
+    // reset data, write and read back, check for identity
+    reset_hdp_data(original_hdp);
+    main_file = fopen(filepath, "w");
+    serialize_hdp(original_hdp, main_file);
+    fclose(main_file);
+    main_file = fopen(filepath, "r");
+    copy_hdp = deserialize_hdp(main_file);
+    fclose(main_file);
+    copy_file = fopen(copy_filepath, "w");
+    serialize_hdp(copy_hdp, copy_file);
+    fclose(copy_file);
+    add_hdp_copy_tests(ct, original_hdp, copy_hdp);
+    destroy_hier_dir_proc(copy_hdp);
+    remove(copy_filepath);
+    
+    // give fuzzy data, write and read back, check for identity
+    pass_fuzzy_data_to_hdp(original_hdp, fuzzy_data, fuzzy_dp_ids, fuzzy_dp_probs,
+                           num_fuzzy_dps, data_length);
+    main_file = fopen(filepath, "w");
+    serialize_hdp(original_hdp, main_file);
+    fclose(main_file);
+    main_file = fopen(filepath, "r");
+    copy_hdp = deserialize_hdp(main_file);
+    fclose(main_file);
+    copy_file = fopen(copy_filepath, "w");
+    serialize_hdp(copy_hdp, copy_file);
+    fclose(copy_file);
+    add_hdp_copy_tests(ct, original_hdp, copy_hdp);
+    destroy_hier_dir_proc(copy_hdp);
+    remove(copy_filepath);
+    
     destroy_hier_dir_proc(original_hdp);
     
+    // construct hdp with fixed concentration parameters and repeat
     data = stList_toDoublePtr(data_list, &data_length);
     dp_ids = stList_toIntPtr(dp_id_list, &dp_ids_length);
     
@@ -323,6 +433,20 @@ void test_serialization(CuTest* ct) {
     
     execute_gibbs_sampling(original_hdp, 10, 10, 10, false);
     finalize_distributions(original_hdp);
+    main_file = fopen(filepath, "w");
+    serialize_hdp(original_hdp, main_file);
+    fclose(main_file);
+    main_file = fopen(filepath, "r");
+    copy_hdp = deserialize_hdp(main_file);
+    fclose(main_file);
+    copy_file = fopen(copy_filepath, "w");
+    serialize_hdp(copy_hdp, copy_file);
+    fclose(copy_file);
+    add_hdp_copy_tests(ct, original_hdp, copy_hdp);
+    destroy_hier_dir_proc(copy_hdp);
+    remove(copy_filepath);
+    
+    reset_hdp_data(original_hdp);
     main_file = fopen(filepath, "w");
     serialize_hdp(original_hdp, main_file);
     fclose(main_file);
