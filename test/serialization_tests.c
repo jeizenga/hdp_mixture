@@ -41,27 +41,27 @@ void add_hdp_copy_tests(CuTest* ct, HierarchicalDirichletProcess* original_hdp,
     CuAssertDblEquals_Msg(ct, "beta fail, check output .hdp files",
                           get_beta(original_hdp), get_beta(copy_hdp), 0.000001);
     
-    int64_t num_data = get_num_data(original_hdp);
+//    int64_t num_data = get_num_data(original_hdp);
     int64_t grid_length = get_grid_length(original_hdp);
     int64_t num_dps = get_num_dir_proc(original_hdp);
     
-    double* original_data = get_data_copy(original_hdp);
-    double* copy_data = get_data_copy(copy_hdp);
+//    double* original_data = get_data_copy(original_hdp);
+//    double* copy_data = get_data_copy(copy_hdp);
     
-    int64_t* original_dp_ids = get_data_pt_dp_ids_copy(original_hdp);
-    int64_t* copy_dp_ids = get_data_pt_dp_ids_copy(copy_hdp);
+//    int64_t* original_dp_ids = get_data_pt_dp_ids_copy(original_hdp);
+//    int64_t* copy_dp_ids = get_data_pt_dp_ids_copy(copy_hdp);
     
-    for (int64_t i = 0; i < num_data; i++) {
-        CuAssertIntEquals_Msg(ct, "data pt dp id fail, check output .hdp files",
-                              (int) original_dp_ids[i], (int) copy_dp_ids[i]);
-        CuAssertDblEquals_Msg(ct, "data pt fail, check output .hdp files",
-                              original_data[i], copy_data[i], 0.000001);
-    }
+//    for (int64_t i = 0; i < num_data; i++) {
+//        CuAssertIntEquals_Msg(ct, "data pt dp id fail, check output .hdp files",
+//                              (int) original_dp_ids[i], (int) copy_dp_ids[i]);
+//        CuAssertDblEquals_Msg(ct, "data pt fail, check output .hdp files",
+//                              original_data[i], copy_data[i], 0.000001);
+//    }
     
-    free(original_data);
-    free(copy_data);
-    free(original_dp_ids);
-    free(copy_dp_ids);
+//    free(original_data);
+//    free(copy_data);
+//    free(original_dp_ids);
+//    free(copy_dp_ids);
     
     int64_t original_num_dps;
     int64_t* original_num_dp_fctrs;

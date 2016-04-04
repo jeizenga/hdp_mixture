@@ -23,13 +23,14 @@ typedef enum DistributionMetric {
 } DistributionMetric;
 
 void print_help() {
-    fprintf(stderr, "Usage: distr_comparison_script nanopore_hdp_file output_file (options)\n\n");
+    fprintf(stderr, "Usage: distr_comparison_script (options) nanopore_hdp_file output_file\n\n");
     fprintf(stderr, "Options:\n");
     fprintf(stderr, "\t-h print this message and exit.\n");
     fprintf(stderr, "\t-d distance metric (kl,hellinger,l2,shannon) [default: hellinger]\n");
     fprintf(stderr, "\t-n nucleotides to compare [default: CHM]\n");
     fprintf(stderr, "\t-c canonical comparison nucleotide (will appear in output) [default: first listed in -n]\n");
     fprintf(stderr, "\t-m max number of nucleotide combos to compare [default: 1]\n");
+    fprintf(stderr, "\t-o only consider homogeneously modified k-mers\n");
 }
 
 char* kmer_from_index(int index, char* alphabet, int alphabet_size, int kmer_length) {
@@ -131,11 +132,10 @@ void count_occurrences(char* kmer, int kmer_length, char* count_set, int set_siz
 
 
 double mean_pairwise_distance(char* restricted_kmer, int kmer_length, int* positions, int num_positions,
-                              char* compare_set, int set_size, NanoporeDistributionMetricMemo* metric_memo) {
+                              char* compare_set, int set_size, bool homogeneous, NanoporeDistributionMetricMemo* metric_memo) {
     
     double sum_distance = 0.0;
-    int num_nuclotide_combos = power(set_size, num_positions);
-    int num_pairs = choose(num_nuclotide_combos, 2);
+    double mean_dist;
     
     char* query_kmer_1 = (char*) malloc(sizeof(char) * kmer_length);
     char* query_kmer_2 = (char*) malloc(sizeof(char) * kmer_length);
@@ -144,33 +144,56 @@ double mean_pairwise_distance(char* restricted_kmer, int kmer_length, int* posit
         query_kmer_2[i] = restricted_kmer[i];
     }
     
-    char* substitutions_1;
-    char* substitutions_2;
-    for (int i = 1; i < num_nuclotide_combos; i++) {
-        substitutions_1 = kmer_from_index(i, compare_set, set_size, num_positions);
-        
-        for (int k = 0; k < num_positions; k++) {
-            query_kmer_1[positions[k]] = substitutions_1[k];
-        }
-        
-        for (int j = 0; j < i; j++) {
-            substitutions_2 = kmer_from_index(j, compare_set, set_size, num_positions);
-            
+    if (homogeneous) {
+        int num_pairs = choose(set_size, 2);
+        for (int i = 1; i < set_size; i++) {
             for (int k = 0; k < num_positions; k++) {
-                query_kmer_2[positions[k]] = substitutions_2[k];
+                query_kmer_1[positions[k]] = compare_set[i];
+            }
+            for (int j = 0; j < i; j++) {
+                for (int k = 0; k < num_positions; k++) {
+                    query_kmer_2[positions[k]] = compare_set[j];
+                }
+                sum_distance += get_kmer_distr_distance(metric_memo, query_kmer_1, query_kmer_2);
             }
             
-            sum_distance += get_kmer_distr_distance(metric_memo, query_kmer_1, query_kmer_2);
-            
-            free(substitutions_2);
         }
-        free(substitutions_1);
+        mean_dist = sum_distance / num_pairs;
     }
+    else {
+        int num_nucleotide_combos = power(set_size, num_positions);
+        int num_pairs = choose(num_nucleotide_combos, 2);
+        
+        char* substitutions_1;
+        char* substitutions_2;
+        for (int i = 1; i < num_nucleotide_combos; i++) {
+            substitutions_1 = kmer_from_index(i, compare_set, set_size, num_positions);
+            
+            for (int k = 0; k < num_positions; k++) {
+                query_kmer_1[positions[k]] = substitutions_1[k];
+            }
+            
+            for (int j = 0; j < i; j++) {
+                substitutions_2 = kmer_from_index(j, compare_set, set_size, num_positions);
+                
+                for (int k = 0; k < num_positions; k++) {
+                    query_kmer_2[positions[k]] = substitutions_2[k];
+                }
+                
+                sum_distance += get_kmer_distr_distance(metric_memo, query_kmer_1, query_kmer_2);
+                
+                free(substitutions_2);
+            }
+            free(substitutions_1);
+        }
+        mean_dist = sum_distance / num_pairs;
+    }
+    
     
     free(query_kmer_1);
     free(query_kmer_2);
     
-    return sum_distance / num_pairs;
+    return mean_dist;
 }
 
 char* get_labeled_kmer(char* restricted_kmer, int kmer_length, int* positions, int num_positions) {
@@ -192,12 +215,13 @@ char* get_labeled_kmer(char* restricted_kmer, int kmer_length, int* positions, i
 int main(int argc, char** argv) {
     
     DistributionMetric metric = HELLINGER;
-    char* comparison_nucleotides = CYTOSINE_MODS;
+    char* comparison_nucleotides = NULL;
     char root_comparison_nucleotide = '\0';
     int max_combo_size = 1;
+    bool homogeneous = false;
     
     int flag;
-    while ((flag = getopt(argc, argv, "hdncm")) != -1) {
+    while ((flag = getopt(argc, argv, "hd:n:c:m:o")) != -1) {
         switch (flag) {
             case 'h':
                 print_help();
@@ -235,12 +259,20 @@ int main(int argc, char** argv) {
                 sscanf(optarg, "%d", &max_combo_size);
                 break;
                 
+            case 'o':
+                homogeneous = true;
+                break;
+                
             default:
                 fprintf(stderr, "ERROR: Unrecognized option '-%c'.\n", flag);
                 print_help();
                 exit(EXIT_FAILURE);
                 break;
         }
+    }
+    
+    if (comparison_nucleotides == NULL) {
+        comparison_nucleotides = "CHM";
     }
     
     // get hdp and pull its attributes
@@ -258,8 +290,8 @@ int main(int argc, char** argv) {
                 break;
             }
             else if (j == alphabet_size - 1) {
-                fprintf(stderr, "ERROR: Comparison nucleotide '%c' not included in alphabet '%s'.\n",
-                        comparison_nucleotides[j], alphabet);
+                fprintf(stderr, "ERROR: Comparison nucleotide '%c' from '%s' not included in alphabet '%s'.\n",
+                        comparison_nucleotides[j], comparison_nucleotides, alphabet);
                 exit(EXIT_FAILURE);
             }
         }
@@ -279,7 +311,7 @@ int main(int argc, char** argv) {
             }
         }
         if (!in_comparison_nucleotides) {
-            fprintf(stderr, "ERROR: root comparison nucleotide '%c' not in comparison group '%s'.\n",
+            fprintf(stderr, "ERROR: canonical comparison nucleotide '%c' not in comparison group '%s'.\n",
                     root_comparison_nucleotide, comparison_nucleotides);
         }
     }
@@ -360,7 +392,7 @@ int main(int argc, char** argv) {
         else if (count <= max_combo_size) {
             labeled_kmer = get_labeled_kmer(kmer, kmer_length, positions, count);
             mean_dist = mean_pairwise_distance(kmer, kmer_length, positions, count, comparison_nucleotides,
-                                               num_comparison_nucleotides, metric_memo);
+                                               num_comparison_nucleotides, homogeneous, metric_memo);
             
             fprintf(output_file, "%s\t%lf\n", labeled_kmer, mean_dist);
             
@@ -388,7 +420,7 @@ int main(int argc, char** argv) {
                 
                 labeled_kmer = get_labeled_kmer(kmer, kmer_length, filtered_positions, max_combo_size);
                 mean_dist = mean_pairwise_distance(kmer, kmer_length, filtered_positions, max_combo_size, comparison_nucleotides,
-                                                   num_comparison_nucleotides, metric_memo);
+                                                   num_comparison_nucleotides, homogeneous, metric_memo);
                 
                 fprintf(output_file, "%s\t%lf\n", labeled_kmer, mean_dist);
                 free(labeled_kmer);

@@ -527,12 +527,10 @@ double rand_exponential(double lambda) {
     return -log(1.0 - draw) / lambda;
 }
 
-double log_posterior_conditional_term(double nu_post, double two_alpha_post,
-                                      double beta_post) {//, SumOfLogsMemo* memo) {
+double log_posterior_conditional_term(double nu_post, double alpha_post,
+                                      double beta_post) {
 
-//    return log_gamma_half((int64_t) two_alpha_post, memo)
-//           - .5 * (log(nu_post) + two_alpha_post * log(beta_post));
-    return lgamma( 0.5 * two_alpha_post) - .5 * (log(nu_post) + two_alpha_post * log(beta_post));
+    return lgamma(alpha_post) - .5 * log(nu_post) - alpha_post * log(beta_post);
 }
 
 void normal_inverse_gamma_params(double* x, int64_t length, double* mu_out, double* nu_out,

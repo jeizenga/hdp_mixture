@@ -30,6 +30,9 @@ void finalize_hdp_structure(HierarchicalDirichletProcess* hdp);
 
 void pass_data_to_hdp(HierarchicalDirichletProcess* hdp, double* data, int64_t* dp_id, int64_t length);
 
+void pass_fuzzy_data_to_hdp(HierarchicalDirichletProcess* hdp, double* data, int64_t** fuzzy_dp_ids,
+                            double** assignment_probs, int64_t* num_fuzzy_dps, int64_t length);
+
 void reset_hdp_data(HierarchicalDirichletProcess* hdp);
 
 // Gibbs sampling
@@ -60,8 +63,8 @@ bool is_sampling_finalized(HierarchicalDirichletProcess* hdp);
 int64_t get_num_dir_proc(HierarchicalDirichletProcess* hdp);
 int64_t get_depth(HierarchicalDirichletProcess* hdp);
 int64_t get_num_data(HierarchicalDirichletProcess* hdp);
-double* get_data_copy(HierarchicalDirichletProcess* hdp);
-int64_t* get_data_pt_dp_ids_copy(HierarchicalDirichletProcess* hdp);
+//double* get_data_copy(HierarchicalDirichletProcess* hdp);
+//int64_t* get_data_pt_dp_ids_copy(HierarchicalDirichletProcess* hdp);
 double* get_gamma_params_copy(HierarchicalDirichletProcess* hdp);
 double get_mu(HierarchicalDirichletProcess* hdp);
 double get_nu(HierarchicalDirichletProcess* hdp);
@@ -73,6 +76,7 @@ double* get_gamma_alpha_params_copy(HierarchicalDirichletProcess* hdp);
 double* get_gamma_beta_params_copy(HierarchicalDirichletProcess* hdp);
 int64_t get_dir_proc_num_factors(HierarchicalDirichletProcess* hdp, int64_t dp_id);
 int64_t get_dir_proc_parent_id(HierarchicalDirichletProcess* hdp, int64_t dp_id);
+int64_t* get_dp_depths(HierarchicalDirichletProcess* hdp);
 
 // computing distance between DP distributions
 

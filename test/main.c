@@ -6,13 +6,20 @@
 #include "hdp_math_utils.h"
 
 void load_data(const char* data_filepath, const char* dp_id_filepath,
-               double** data_out, int64_t** dp_ids_out, int64_t* length_out) {
+               const char* fuzzy_dp_id_filepath, const char* fuzzy_dp_prob_filepath,
+               double** data_out, int64_t** dp_ids_out, int64_t*** fuzzy_dp_ids_out,
+               double*** fuzzy_dp_probs_out, int64_t** num_fuzzy_dps_out, int64_t* length_out) {
     
     FILE* data_file = fopen(data_filepath, "r");
     FILE* dp_id_file = fopen(dp_id_filepath, "r");
+    FILE* fuzzy_dp_id_file = fopen(fuzzy_dp_id_filepath, "r");
+    FILE* fuzzy_dp_prob_file = fopen(fuzzy_dp_prob_filepath, "r");
     
     stList* data_list = stList_construct3(0, *free);
     stList* dp_id_list = stList_construct3(0, *free);
+    stList* num_fuzzy_dps_list = stList_construct3(0, *free);
+    stList* fuzzy_dp_id_list = stList_construct();
+    stList* fuzzy_dp_prob_list = stList_construct();
     
     char* line = stFile_getLineFromFile(data_file);
     
@@ -29,7 +36,6 @@ void load_data(const char* data_filepath, const char* dp_id_filepath,
         line = stFile_getLineFromFile(data_file);
     }
     
-    
     line = stFile_getLineFromFile(dp_id_file);
     int64_t* dp_id_ptr;
     while (line != NULL) {
@@ -43,23 +49,80 @@ void load_data(const char* data_filepath, const char* dp_id_filepath,
         line = stFile_getLineFromFile(dp_id_file);
     }
     
+    int64_t num_fuzzy_dp;
+    int64_t* num_fuzzy_dp_ptr;
+    int64_t* data_pt_fuzzy_dp_ids;
+    
+    line = stFile_getLineFromFile(fuzzy_dp_id_file);
+    stList* line_list;
+    while (line != NULL) {
+        num_fuzzy_dp_ptr = (int64_t*) malloc(sizeof(int64_t));
+        line_list = stString_split(line);
+        num_fuzzy_dp = stList_length(line_list);
+        *num_fuzzy_dp_ptr = num_fuzzy_dp;
+        stList_append(num_fuzzy_dps_list, num_fuzzy_dp_ptr);
+        
+        data_pt_fuzzy_dp_ids = (int64_t*) malloc(sizeof(int64_t) * num_fuzzy_dp);
+        for (int64_t i = 0; i < num_fuzzy_dp; i++) {
+            sscanf(stList_get(line_list, i), "%"SCNd64, &(data_pt_fuzzy_dp_ids[i]));
+        }
+        stList_append(fuzzy_dp_id_list, data_pt_fuzzy_dp_ids);
+        stList_destruct(line_list);
+        free(line);
+        line = stFile_getLineFromFile(fuzzy_dp_id_file);
+    }
+    
+    double* data_pt_fuzzy_dp_probs;
+    
+    line = stFile_getLineFromFile(fuzzy_dp_prob_file);
+    while (line != NULL) {
+        line_list = stString_split(line);
+        num_fuzzy_dp = stList_length(line_list);
+        
+        data_pt_fuzzy_dp_probs = (double*) malloc(sizeof(double) * num_fuzzy_dp);
+        for (int64_t i = 0; i < num_fuzzy_dp; i++) {
+            sscanf(stList_get(line_list, i), "%lf", &(data_pt_fuzzy_dp_probs[i]));
+        }
+        stList_append(fuzzy_dp_prob_list, data_pt_fuzzy_dp_probs);
+        stList_destruct(line_list);
+        free(line);
+        line = stFile_getLineFromFile(fuzzy_dp_prob_file);
+    }
+    
+    int64_t num_fuzzy_data = stList_length(fuzzy_dp_id_list);
+    
+    int64_t** fuzzy_dp_ids = (int64_t**) malloc(sizeof(int64_t) * num_fuzzy_data);
+    double** fuzzy_dp_probs = (double**) malloc(sizeof(double) * num_fuzzy_data);
+    for (int64_t i = 0; i < num_fuzzy_data; i++) {
+        fuzzy_dp_ids[i] = (int64_t*) stList_get(fuzzy_dp_id_list, i);
+        fuzzy_dp_probs[i] = (double*) stList_get(fuzzy_dp_prob_list, i);
+    }
+    
     int64_t data_length;
     int64_t dp_ids_length;
+    int64_t num_fuzzy_dps_length;
     
     double* data = stList_toDoublePtr(data_list, &data_length);
     int64_t* dp_ids = stList_toIntPtr(dp_id_list, &dp_ids_length);
+    int64_t* num_fuzzy_dps = stList_toIntPtr(num_fuzzy_dps_list, &num_fuzzy_dps_length);
     
-    if (data_length != dp_ids_length) {
-        fprintf(stderr, "Data and DP ID files have different lengths\n");
+    if (data_length != dp_ids_length || data_length != num_fuzzy_dps_length) {
+        fprintf(stderr, "Data files have different lengths\n");
         exit(EXIT_FAILURE);
     }
     
     *data_out = data;
     *dp_ids_out = dp_ids;
+    *fuzzy_dp_ids_out = fuzzy_dp_ids;
+    *fuzzy_dp_probs_out = fuzzy_dp_probs;
+    *num_fuzzy_dps_out = num_fuzzy_dps;
     *length_out = data_length;
     
     stList_destruct(dp_id_list);
     stList_destruct(data_list);
+    stList_destruct(num_fuzzy_dps_list);
+    stList_destruct(fuzzy_dp_id_list);
+    stList_destruct(fuzzy_dp_prob_list);
     
     fclose(data_file);
     fclose(dp_id_file);
@@ -221,7 +284,7 @@ int main(int argc, char* argv[]) {
                                                           mu, nu, alpha, beta);
     
     
-    // parameters for distributions of concentration parameters at each depth
+    // parameters for Gamma distributions of concentration parameters at each depth
 //    double* gamma_alpha = (double*) malloc(sizeof(double) * depth);
 //    gamma_alpha[0] = 1.0; gamma_alpha[1] = 1.0; gamma_alpha[2] = 2.0;
 //    double* gamma_beta = (double*) malloc(sizeof(double) * depth);
@@ -292,10 +355,15 @@ int main(int argc, char* argv[]) {
     fprintf(stderr, "Loading data from disk...\n");
     double* data;
     int64_t* data_pt_dps;
+    int64_t** fuzzy_dps;
+    double** fuzzy_dp_probs;
+    int64_t* num_fuzzy_dps;
     int64_t data_length;
     load_data("/Users/Jordan/Documents/GitHub/hdp_mixture/test/data.txt",
               "/Users/Jordan/Documents/GitHub/hdp_mixture/test/dps.txt",
-              &data, &data_pt_dps, &data_length);
+              "/Users/Jordan/Documents/GitHub/hdp_mixture/test/fuzzy_dps.txt",
+              "/Users/Jordan/Documents/GitHub/hdp_mixture/test/fuzzy_dp_probs.txt",
+              &data, &data_pt_dps, &fuzzy_dps, &fuzzy_dp_probs, &num_fuzzy_dps, &data_length);
     
     int64_t new_data_length = data_length / 2;
     double* new_data = (double*) malloc(sizeof(double) * new_data_length);
@@ -306,32 +374,36 @@ int main(int argc, char* argv[]) {
         new_data_pt_dps[i] = data_pt_dps[i];
     }
     
-    fprintf(stderr, "Giving HDP data...\n");
-    pass_data_to_hdp(hdp, data, data_pt_dps, data_length);
+//    fprintf(stderr, "Giving HDP data...\n");
+//    pass_data_to_hdp(hdp, data, data_pt_dps, data_length);
+    
+    fprintf(stderr, "Giving HDP fuzzy data...\n");
+    pass_fuzzy_data_to_hdp(hdp, data, fuzzy_dps, fuzzy_dp_probs, num_fuzzy_dps, data_length);
+    
     // note: you can also pass data before finalizing the structure
     // note: it is not necessary to observe every Dirichlet process in the data
     
-    int64_t num_samples = 2000;
-    int64_t burn_in = 2000000;
-    int64_t thinning = 1000;
+    int64_t num_samples = 1000;
+    int64_t burn_in = 300000;
+    int64_t thinning = 100;
 
     // choose whether to Gibbs sample only the distributions or to also supply a
     // snapshot function that samples at the beginning of each Gibbs sweep
     
     // sample with a snapshot function
-    fprintf(stderr, "Making snapshot args...\n");
-    SnapshotArgs filepaths = make_snapshot_args("num_dp_factors.txt",
-                                                "gamma_params.txt",
-                                                "log_likelihood.txt",
-                                                "log_density.txt");
+//    fprintf(stderr, "Making snapshot args...\n");
+//    SnapshotArgs filepaths = make_snapshot_args("num_dp_factors.txt",
+//                                                "gamma_params.txt",
+//                                                "log_likelihood.txt",
+//                                                "log_density.txt");
+//    
+//    fprintf(stderr, "Executing Gibbs sampling and recording snapshots...\n");
+//    execute_gibbs_sampling_with_snapshots(hdp, num_samples, burn_in, thinning,
+//                                          &record_snapshots_to_files, (void*) &filepaths, true);
     
-    fprintf(stderr, "Executing Gibbs sampling and recording snapshots...\n");
-    execute_gibbs_sampling_with_snapshots(hdp, num_samples, burn_in, thinning,
-                                          &record_snapshots_to_files, (void*) &filepaths, true);
-    
-//    // sample without a snapshot function
-//    fprintf(stderr, "Executing Gibbs sampling without snapshots...\n");
-//    execute_gibbs_sampling(hdp, num_samples, burn_in, thinning, true);
+    // sample without a snapshot function
+    fprintf(stderr, "Executing Gibbs sampling without snapshots...\n");
+    execute_gibbs_sampling(hdp, num_samples, burn_in, thinning, true);
 
     // calculate the mean a posteriori estimate of each distribution
     fprintf(stderr, "Computing mean a posteriori distributions...\n");

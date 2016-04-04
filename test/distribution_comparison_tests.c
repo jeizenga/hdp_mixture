@@ -24,7 +24,7 @@ void add_distr_metric_tests(CuTest* ct, DistributionMetricMemo* memo, Hierarchic
         
         for (int64_t j = 0; j < i; j++) {
             double dist = get_dir_proc_distance(memo, i, j);
-            
+
             CuAssert(ct, "nonnegativity fail\n", dist >= 0.0);
             
             CuAssertDblEquals_Msg(ct, "symmetry fail\n",  get_dir_proc_distance(memo, j, i),
@@ -90,6 +90,8 @@ void test_distr_metrics(CuTest* ct) {
     int64_t data_length;
     int64_t dp_ids_length;
     
+    //printf("num data in list: %"PRId64"\n", stList_length(data_list));
+    
     double* data = stList_toDoublePtr(data_list, &data_length);
     int64_t* dp_ids = stList_toIntPtr(dp_id_list, &dp_ids_length);
     
@@ -116,10 +118,14 @@ void test_distr_metrics(CuTest* ct) {
     double* gamma_beta = (double*) malloc(sizeof(double) * depth);
     gamma_beta[0] = 0.2; gamma_beta[1] = 0.2; gamma_beta[2] = 0.1;
     
-    HierarchicalDirichletProcess* hdp = new_hier_dir_proc_2(num_dir_proc, depth, gamma_alpha,
-                                                                     gamma_beta, grid_start, grid_end,
-                                                                     grid_length, mu, nu, alpha, beta);
+    //printf("constructing\n");
     
+    HierarchicalDirichletProcess* hdp = new_hier_dir_proc_2(num_dir_proc, depth, gamma_alpha,
+                                                            gamma_beta, grid_start, grid_end,
+                                                            grid_length, mu, nu, alpha, beta);
+    
+    
+    //printf("structuring\n");
     
     set_dir_proc_parent(hdp, 1, 0);
     set_dir_proc_parent(hdp, 2, 0);
@@ -128,34 +134,46 @@ void test_distr_metrics(CuTest* ct) {
     set_dir_proc_parent(hdp, 5, 1);
     set_dir_proc_parent(hdp, 6, 2);
     set_dir_proc_parent(hdp, 7, 2);
+    //printf("finalizing structure\n");
     finalize_hdp_structure(hdp);
     
+    //printf("passing data\n");
     pass_data_to_hdp(hdp, data, dp_ids, data_length);
     
-    
+    //printf("sampling\n");
     execute_gibbs_sampling(hdp, 10, 10, 10, false);
     
+    //printf("finalizing distributions\n");
     finalize_distributions(hdp);
     
+    //printf("getting memos\n");
+    
+    //printf("kl\n");
     DistributionMetricMemo* memo = new_kl_divergence_memo(hdp);
     add_distr_metric_tests(ct, memo, hdp);
     
-    memo = new_l2_distance_memo(hdp);
-    add_distr_metric_tests(ct, memo, hdp);
-    add_true_metric_tests(ct, memo, hdp);
-    
-    memo = new_shannon_jensen_distance_memo(hdp);
-    add_distr_metric_tests(ct, memo, hdp);
-    add_true_metric_tests(ct, memo, hdp);
-    
+    //printf("hellinger\n");
     memo = new_hellinger_distance_memo(hdp);
     add_distr_metric_tests(ct, memo, hdp);
     add_true_metric_tests(ct, memo, hdp);
     
+    //printf("l2\n");
+    memo = new_l2_distance_memo(hdp);
+    add_distr_metric_tests(ct, memo, hdp);
+    add_true_metric_tests(ct, memo, hdp);
+    
+    //printf("shannon\n");
+    memo = new_shannon_jensen_distance_memo(hdp);
+    add_distr_metric_tests(ct, memo, hdp);
+    add_true_metric_tests(ct, memo, hdp);
+    
+    //printf("destroying\n");
     destroy_hier_dir_proc(hdp);
 }
 
 void test_nhdp_distrs(CuTest* ct) {
+    
+    //printf("##\n##\nNANOPORE TESTS\n##\n##\n");
     
     NanoporeHDP* nhdp = flat_hdp_model("ACGT", 4, 6, 4.0, 20.0, 0.0, 100.0, 100,
                                        "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_model.model");
@@ -163,7 +181,7 @@ void test_nhdp_distrs(CuTest* ct) {
     update_nhdp_from_alignment(nhdp, "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_alignment.tsv",
                                false);
     
-    execute_nhdp_gibbs_sampling(nhdp, 100, 0, 1, false);
+    execute_nhdp_gibbs_sampling(nhdp, 10, 0, 1, false);
     finalize_nhdp_distributions(nhdp);
     
     NanoporeDistributionMetricMemo* memo = new_nhdp_kl_divergence_memo(nhdp);
