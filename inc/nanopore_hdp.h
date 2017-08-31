@@ -32,12 +32,24 @@ void finalize_nhdp_distributions(NanoporeHDP* nhdp);
 
 double get_nanopore_kmer_density(NanoporeHDP* nhdp, double x, char* kmer);
 
-
-void update_nhdp_from_alignment(NanoporeHDP* nhdp, const char* alignment_filepath, bool has_header);
-
+// data passing function options:
+// provide firm alignments or probabilistic (fuzzy) alignments
+// include one alignment file or an array of alignment files
 // filter for only observations containing "strand_filter" in the strand column
+void update_nhdp_from_alignment(NanoporeHDP* nhdp, const char* alignment_filepath, bool has_header);
 void update_nhdp_from_alignment_with_filter(NanoporeHDP* nhdp, const char* alignment_filepath,
                                             bool has_header, const char* strand_filter);
+void update_nhdp_from_alignments(NanoporeHDP* nhdp, const char** alignment_filepaths, int64_t num_files,
+                                 bool has_header);
+void update_nhdp_from_alignments_with_filter(NanoporeHDP* nhdp, const char** alignment_filepaths, int64_t num_files,
+                                             bool has_header, const char* strand_filter);
+void update_nhdp_from_fuzzy_alignment(NanoporeHDP* nhdp, const char* fuzzy_alignment_filepath, bool has_header);
+void update_nhdp_from_fuzzy_alignment_with_filter(NanoporeHDP* nhdp, const char* fuzzy_alignment_filepath,
+                                                  bool has_header, const char* strand_filter);
+void update_nhdp_from_fuzzy_alignments(NanoporeHDP* nhdp, const char** fuzzy_alignment_filepaths, int64_t num_files,
+                                       bool has_header);
+void update_nhdp_from_fuzzy_alignments_with_filter(NanoporeHDP* nhdp, const char** fuzzy_alignment_filepaths, int64_t num_files,
+                                                   bool has_header, const char* strand_filter);
 
 // computing metrics on distributions
 
@@ -48,7 +60,7 @@ NanoporeDistributionMetricMemo* new_nhdp_hellinger_distance_memo(NanoporeHDP* nh
 NanoporeDistributionMetricMemo* new_nhdp_l2_distance_memo(NanoporeHDP* nhdp);
 NanoporeDistributionMetricMemo* new_nhdp_shannon_jensen_distance_memo(NanoporeHDP* nhdp);
 // note: the lifetime of a NanoporeDistributionMetricMemo is tied to the lifetime of the
-// NanoporeHDP that generated it
+// NanoporeHDP that generated it (destroying the NanoporeHDP destroys both)
 
 double compare_nhdp_distrs_kl_divergence(NanoporeHDP* nhdp_1, char* kmer_1,
                                          NanoporeHDP* nhdp_2, char* kmer_2);

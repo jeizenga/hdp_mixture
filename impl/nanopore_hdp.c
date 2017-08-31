@@ -7,10 +7,18 @@
 //
 
 // in 0-based index
-#define ALIGNMENT_KMER_COL 9
 #define ALIGNMENT_STRAND_COL 4
+#define ALIGNMENT_KMER_COL 9
 #define ALIGNMENT_SIGNAL_COL 13
 #define NUM_ALIGNMENT_COLS 15
+
+// in 0-based index
+#define FUZZY_ALIGNMENT_STRAND_COL 4
+#define FUZZY_ALIGNMENT_KMERS_COL 9
+#define FUZZY_ALIGNMENT_POST_PROBS_COL 12
+#define FUZZY_ALIGNMENT_SIGNAL_COL 13
+#define NUM_FUZZY_ALIGNMENT_COLS 15
+#define FUZZY_ALIGNMENT_COMPOUND_COL_DELIM ","
 
 #define MODEL_ROW_HEADER_LENGTH 1
 #define MODEL_MEAN_ENTRY 0
@@ -80,6 +88,7 @@ NanoporeHDP* package_nanopore_hdp(HierarchicalDirichletProcess* hdp, const char*
     nhdp->kmer_length = kmer_length;
     
     // note: destroying the HDP housed in the NHDP will destroy the DistributionMetricMemo
+    // so freeing the NanooreDistributionMetricMemo is sufficient
     nhdp->distr_metric_memos = stSet_construct2(&free);
     
     return nhdp;
@@ -112,8 +121,7 @@ char* get_nanopore_hdp_alphabet(NanoporeHDP* nhdp) {
     return copy;
 }
 
-
-// wrappers
+// wrappers for hdp functions
 void execute_nhdp_gibbs_sampling(NanoporeHDP* nhdp, int64_t num_samples, int64_t burn_in,
                                  int64_t thinning, bool verbose) {
     execute_gibbs_sampling(nhdp->hdp, num_samples, burn_in, thinning, verbose);
@@ -191,21 +199,11 @@ HierarchicalDirichletProcess* minION_hdp_2(int64_t num_dps, int64_t depth, doubl
                                sampling_grid_stop, sampling_grid_length, mu, nu, alpha, beta);
 }
 
-void update_nhdp_from_alignment(NanoporeHDP* nhdp, const char* alignment_filepath, bool has_header) {
-    update_nhdp_from_alignment_with_filter(nhdp, alignment_filepath, has_header, NULL);
-}
-
-void update_nhdp_from_alignment_with_filter(NanoporeHDP* nhdp, const char* alignment_filepath,
+void update_nhdp_from_alignments_with_filter(NanoporeHDP* nhdp, const char** alignment_filepaths, int64_t num_files,
                                             bool has_header, const char* strand_filter) {
     
     stList* signal_list = stList_construct3(0, &free);
     stList* dp_id_list = stList_construct3(0, &free);
-    
-    FILE* align_file = fopen(alignment_filepath, "r");
-    if (align_file == NULL) {
-        fprintf(stderr, "Alignment %s file does not exist.\n", alignment_filepath);
-        exit(EXIT_FAILURE);
-    }
     
     stList* tokens;
     int64_t line_length;
@@ -216,47 +214,59 @@ void update_nhdp_from_alignment_with_filter(NanoporeHDP* nhdp, const char* align
     double* signal_ptr;
     bool warned = false;
     int proceed = 0;
+    char* line;
+    const char* alignment_filepath;
     
-    char* line = stFile_getLineFromFile(align_file);
-    if (has_header) {
-        line = stFile_getLineFromFile(align_file);
-    }
-    while (line != NULL) {
-        tokens = stString_split(line);
-        line_length = stList_length(tokens);
+    for (int64_t i = 0; i < num_files; i++) {
+        alignment_filepath = alignment_filepaths[i];
         
-        if (!warned) {
-            if (line_length != NUM_ALIGNMENT_COLS) {
-                fprintf(stderr, "Input format has changed from design period, HDP may receive incorrect data.\n");
-                warned = true;
+        FILE* align_file = fopen(alignment_filepath, "r");
+        if (align_file == NULL) {
+            fprintf(stderr, "Alignment %s file does not exist.\n", alignment_filepath);
+            exit(EXIT_FAILURE);
+        }
+        
+        line = stFile_getLineFromFile(align_file);
+        if (has_header) {
+            line = stFile_getLineFromFile(align_file);
+        }
+        while (line != NULL) {
+            tokens = stString_split(line);
+            line_length = stList_length(tokens);
+            
+            if (!warned) {
+                if (line_length != NUM_ALIGNMENT_COLS) {
+                    fprintf(stderr, "Input format has changed from design period, HDP may receive incorrect data.\n");
+                    warned = true;
+                }
             }
-        }
-        
-        strand = (char*) stList_get(tokens, ALIGNMENT_STRAND_COL);
-        
-        if (strand_filter != NULL) {
-            proceed = strcmp(strand, strand_filter);
-        }
-        
-        if (proceed == 0) {
-            signal_str = (char*) stList_get(tokens, ALIGNMENT_SIGNAL_COL);
-            kmer = (char*) stList_get(tokens, ALIGNMENT_KMER_COL);
             
-            signal_ptr = (double*) malloc(sizeof(double));
-            dp_id_ptr = (int64_t*) malloc(sizeof(int64_t));
-            sscanf(signal_str, "%lf", signal_ptr);
-            *dp_id_ptr = kmer_id(kmer, nhdp->alphabet, nhdp->alphabet_size, nhdp->kmer_length);
+            strand = (char*) stList_get(tokens, ALIGNMENT_STRAND_COL);
             
-            stList_append(signal_list, signal_ptr);
-            stList_append(dp_id_list, dp_id_ptr);
+            if (strand_filter != NULL) {
+                proceed = strcmp(strand, strand_filter);
+            }
+            
+            if (proceed == 0) {
+                signal_str = (char*) stList_get(tokens, ALIGNMENT_SIGNAL_COL);
+                kmer = (char*) stList_get(tokens, ALIGNMENT_KMER_COL);
+                
+                signal_ptr = (double*) malloc(sizeof(double));
+                dp_id_ptr = (int64_t*) malloc(sizeof(int64_t));
+                sscanf(signal_str, "%lf", signal_ptr);
+                *dp_id_ptr = kmer_id(kmer, nhdp->alphabet, nhdp->alphabet_size, nhdp->kmer_length);
+                
+                stList_append(signal_list, signal_ptr);
+                stList_append(dp_id_list, dp_id_ptr);
+            }
+            
+            stList_destruct(tokens);
+            free(line);
+            line = stFile_getLineFromFile(align_file);
         }
         
-        stList_destruct(tokens);
-        free(line);
-        line = stFile_getLineFromFile(align_file);
+        fclose(align_file);
     }
-    
-    fclose(align_file);
     
     int64_t data_length;
     
@@ -270,6 +280,171 @@ void update_nhdp_from_alignment_with_filter(NanoporeHDP* nhdp, const char* align
     pass_data_to_hdp(nhdp->hdp, signal, dp_ids, data_length);
 }
 
+void update_nhdp_from_alignment_with_filter(NanoporeHDP* nhdp, const char* alignment_filepath,
+                                            bool has_header, const char* strand_filter) {
+    const char** alignment_filepath_ptr = &alignment_filepath;
+    update_nhdp_from_alignments_with_filter(nhdp, alignment_filepath_ptr, 1, has_header, strand_filter);
+}
+
+void update_nhdp_from_alignments(NanoporeHDP* nhdp, const char** alignment_filepaths, int64_t num_files,
+                                 bool has_header) {
+    
+    update_nhdp_from_alignments_with_filter(nhdp, alignment_filepaths, num_files, has_header, NULL);
+}
+
+void update_nhdp_from_alignment(NanoporeHDP* nhdp, const char* alignment_filepath, bool has_header) {
+    
+    const char** alignment_filepath_ptr = &alignment_filepath;
+    update_nhdp_from_alignments_with_filter(nhdp, alignment_filepath_ptr, 1, has_header, NULL);
+}
+
+void update_nhdp_from_fuzzy_alignments_with_filter(NanoporeHDP* nhdp, const char** fuzzy_alignment_filepaths, int64_t num_files,
+                                                  bool has_header, const char* strand_filter) {
+    
+    stList* signal_list = stList_construct3(0, &free);
+    stList* num_fuzzy_dps_list = stList_construct3(0, &free);
+    stList* fuzzy_dp_ids_list = stList_construct();
+    stList* fuzzy_dp_probs_list = stList_construct();
+    
+    const char* alignment_filepath;
+    
+    stList* tokens;
+    int64_t line_length;
+    char* strand;
+    char* kmers_str;
+    char* signal_str;
+    char* probs_str;
+    
+    stList* kmers_list;
+    stList* probs_list;
+    int64_t num_fuzzy_dps;
+    
+    int64_t* fuzzy_dp_ids;
+    double* fuzzy_dp_probs;
+    int64_t* num_fuzzy_dps_ptr;
+    double* signal_ptr;
+    
+    bool warned = false;
+    int proceed = 0;
+    
+    for (int64_t i = 0; i < num_files; i++) {
+        alignment_filepath = fuzzy_alignment_filepaths[i];
+        
+        FILE* align_file = fopen(alignment_filepath, "r");
+        if (align_file == NULL) {
+            fprintf(stderr, "Alignment %s file does not exist.\n", alignment_filepath);
+            exit(EXIT_FAILURE);
+        }
+        
+        char* line = stFile_getLineFromFile(align_file);
+        if (has_header) {
+            free(line);
+            line = stFile_getLineFromFile(align_file);
+        }
+        while (line != NULL) {
+            tokens = stString_split(line);
+            line_length = stList_length(tokens);
+            
+            if (!warned) {
+                if (line_length != NUM_FUZZY_ALIGNMENT_COLS) {
+                    fprintf(stderr, "Input format has changed from design period, HDP may receive incorrect data.\n");
+                    warned = true;
+                }
+            }
+            
+            strand = (char*) stList_get(tokens, FUZZY_ALIGNMENT_STRAND_COL);
+            
+            if (strand_filter != NULL) {
+                proceed = strcmp(strand, strand_filter);
+            }
+            
+            if (proceed == 0) {
+                signal_str = (char*) stList_get(tokens, FUZZY_ALIGNMENT_SIGNAL_COL);
+                kmers_str = (char*) stList_get(tokens, FUZZY_ALIGNMENT_KMERS_COL);
+                probs_str = (char*) stList_get(tokens, FUZZY_ALIGNMENT_POST_PROBS_COL);
+                
+                kmers_list = stString_splitByString(kmers_str, FUZZY_ALIGNMENT_COMPOUND_COL_DELIM);
+                probs_list = stString_splitByString(probs_str, FUZZY_ALIGNMENT_COMPOUND_COL_DELIM);
+                
+                num_fuzzy_dps = stList_length(kmers_list);
+                if (num_fuzzy_dps != stList_length(probs_list)) {
+                    fprintf(stderr, "Observation has different number of k-mers and posterior probabilities:\n%s\n%s\n",
+                            kmers_str, probs_str);
+                    exit(EXIT_FAILURE);
+                }
+                
+                fuzzy_dp_ids = (int64_t*) malloc(sizeof(int64_t) * num_fuzzy_dps);
+                fuzzy_dp_probs = (double*) malloc(sizeof(double) * num_fuzzy_dps);
+                signal_ptr = (double*) malloc(sizeof(double));
+                num_fuzzy_dps_ptr = (int64_t*) malloc(sizeof(int64_t));
+                
+                sscanf(signal_str, "%lf", signal_ptr);
+                *num_fuzzy_dps_ptr = num_fuzzy_dps;
+                
+                for (int64_t i = 0; i < num_fuzzy_dps; i++) {
+                    fuzzy_dp_ids[i] = kmer_id(stList_get(kmers_list, i),
+                                              nhdp->alphabet, nhdp->alphabet_size, nhdp->kmer_length);
+                    sscanf(stList_get(probs_list, i), "%lf", &(fuzzy_dp_probs[i]));
+                }
+                
+                stList_destruct(kmers_list);
+                stList_destruct(probs_list);
+                
+                stList_append(signal_list, signal_ptr);
+                stList_append(num_fuzzy_dps_list, num_fuzzy_dps_ptr);
+                stList_append(fuzzy_dp_ids_list, fuzzy_dp_ids);
+                stList_append(fuzzy_dp_probs_list, fuzzy_dp_probs);
+            }
+            
+            stList_destruct(tokens);
+            free(line);
+            line = stFile_getLineFromFile(align_file);
+        }
+        
+        fclose(align_file);
+    }
+    
+    int64_t data_length;
+    
+    double* signal = stList_toDoublePtr(signal_list, &data_length);
+    int64_t* data_pt_num_fuzzy_dps = stList_toIntPtr(num_fuzzy_dps_list, &data_length);
+    
+    int64_t** data_pt_fuzzy_dp_ids = (int64_t**) malloc(sizeof(int64_t*) * data_length);
+    double** data_pt_fuzzy_dp_probs = (double**) malloc(sizeof(double*) * data_length);
+    
+    for (int64_t i = 0; i < data_length; i++) {
+        data_pt_fuzzy_dp_ids = stList_get(fuzzy_dp_ids_list, i);
+        data_pt_fuzzy_dp_probs = stList_get(fuzzy_dp_probs_list, i);
+    }
+    
+    stList_destruct(signal_list);
+    stList_destruct(num_fuzzy_dps_list);
+    stList_destruct(fuzzy_dp_ids_list);
+    stList_destruct(fuzzy_dp_probs_list);
+    
+    reset_hdp_data(nhdp->hdp);
+    pass_fuzzy_data_to_hdp(nhdp->hdp, signal, data_pt_fuzzy_dp_ids, data_pt_fuzzy_dp_probs,
+                           data_pt_num_fuzzy_dps, data_length);
+}
+
+void update_nhdp_from_fuzzy_alignment_with_filter(NanoporeHDP* nhdp, const char* fuzzy_alignment_filepath,
+                                                  bool has_header, const char* strand_filter) {
+    
+    const char** fuzzy_alignment_filepath_ptr = &fuzzy_alignment_filepath;
+    update_nhdp_from_fuzzy_alignments_with_filter(nhdp, fuzzy_alignment_filepath_ptr, 1, has_header, strand_filter);
+}
+
+void update_nhdp_from_fuzzy_alignments(NanoporeHDP* nhdp, const char** fuzzy_alignment_filepaths, int64_t num_files,
+                                       bool has_header) {
+    
+    update_nhdp_from_fuzzy_alignments_with_filter(nhdp, fuzzy_alignment_filepaths, num_files, has_header, NULL);
+}
+
+void update_nhdp_from_fuzzy_alignment(NanoporeHDP* nhdp, const char* fuzzy_alignment_filepath, bool has_header) {
+    
+    const char** fuzzy_alignment_filepath_ptr = &fuzzy_alignment_filepath;
+    update_nhdp_from_fuzzy_alignments_with_filter(nhdp, fuzzy_alignment_filepath_ptr, 1, has_header, NULL);
+}
 
 
 // n^k

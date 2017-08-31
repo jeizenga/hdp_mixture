@@ -152,6 +152,17 @@ void create_group_multiset_model(CuTest* ct) {
     destroy_nanopore_hdp(nhdp);
 }
 
+void test_sampling(CuTest* ct) {
+    int64_t groups[] = {0, 1, 2, 3, 1, 1};
+    NanoporeHDP* nhdp = group_multiset_hdp_model("ACGTHM", groups, 6, 6, 1.0, 1.0, 1.0, -1.0 ,1.0, 10,
+                                                 "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_model.model");
+    update_nhdp_from_alignment(nhdp, "/Users/Jordan/Documents/GitHub/hdp_mixture/test/test_alignment.tsv",
+                               false);
+    
+    CuAssert(ct, "did not complete nhdp construction\n", true);
+    destroy_nanopore_hdp(nhdp);
+}
+
 
 CuSuite* get_suite() {
     

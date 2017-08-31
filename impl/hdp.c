@@ -407,12 +407,9 @@ DirichletProcess* sample_fuzzy_data_pt_dp_assignment(Factor* fctr) {
     int64_t num_fuzzy_dps = fctr_data->num_fuzzy_dps;
     DirichletProcess** fuzzy_dps = fctr_data->fuzzy_dps;
     double* cdf = fctr_data->fuzzy_dp_cdf;
-    double total_prob = cdf[num_fuzzy_dps - 1];
     
-    double draw = rand_uniform(total_prob);
-    DirichletProcess* dp_choice = fuzzy_dps[bisect_left(draw, cdf, num_fuzzy_dps)];
-    
-    return dp_choice;
+    double draw = rand_uniform(0.0, cdf[num_fuzzy_dps - 1]);
+    return fuzzy_dps[bisect_left(draw, cdf, num_fuzzy_dps)];
 }
 
 Factor* get_base_factor(Factor* fctr) {
@@ -2110,7 +2107,7 @@ void assign_to_parent(Factor* fctr, Factor* parent, bool update_params) {
 //    cumul += gamma_param * unobserved_factor_likelihood(fctr, dp);
 //    cdf[num_fctrs] = cumul;
 //    
-//    int64_t choice_idx = bisect_left(rand_uniform(cumul), cdf, num_fctrs + 1);
+//    int64_t choice_idx = bisect_left(rand_uniform(0.0, cumul), cdf, num_fctrs + 1);
 //    
 //    Factor* fctr_choice;
 //    if (choice_idx == num_fctrs) {
@@ -2173,7 +2170,7 @@ Factor* sample_from_data_pt_factor(Factor* fctr, DirichletProcess* dp) {
     
     cdf[num_fctrs] = cdf[num_fctrs - 1] + new_fctr_prob;
     
-    int64_t choice_idx = bisect_left(rand_uniform(cdf[num_fctrs]), cdf, num_fctrs + 1);
+    int64_t choice_idx = bisect_left(rand_uniform(0.0, cdf[num_fctrs]), cdf, num_fctrs + 1);
     
     Factor* fctr_choice;
     if (choice_idx == num_fctrs) {
@@ -2231,7 +2228,7 @@ Factor* sample_from_data_pt_factor(Factor* fctr, DirichletProcess* dp) {
 //    
 //    free(log_probs);
 //    
-//    int64_t choice_idx = bisect_left(rand_uniform(cumul), cdf, num_choices);
+//    int64_t choice_idx = bisect_left(rand_uniform(0.0, cumul), cdf, num_choices);
 //    free(cdf);
 //    
 //    Factor* fctr_choice;
@@ -2301,7 +2298,7 @@ Factor* sample_from_middle_factor(Factor* fctr, DirichletProcess* dp) {
     parallel_cdf(cdf, log_probs, num_choices, 10);
     free(log_probs);
 
-    int64_t choice_idx = bisect_left(rand_uniform(cdf[num_fctrs]), cdf, num_choices);
+    int64_t choice_idx = bisect_left(rand_uniform(0.0, cdf[num_fctrs]), cdf, num_choices);
     free(cdf);
 
     Factor* fctr_choice;

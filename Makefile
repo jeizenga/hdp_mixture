@@ -9,11 +9,11 @@ LIBDIR:=${ROOTDIR}/lib
 TESTDIR:=${ROOTDIR}/test
 OBJDIR:=${ROOTDIR}/obj
 EXTERNDIR:=${ROOTDIR}/external
-CFLAGS:=-std=c99 -Wall -Wextra -Wpedantic -fopenmp
+CFLAGS:=-std=c99  -fopenmp
 INC:=-I${INCDIR} -I${SONLIBDIR} -I${EXTERNDIR}
 LINK:=-L${SONLIBDIR} -L${OBJDIR} -lm
 SHELL:=/bin/bash
-CC:=gcc-5.2.0
+CC:=gcc
 
 all: ${OBJDIR}/CuTest.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/rnglib.o ${OBJDIR}/ranlib.o ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/hdp.o ${OBJDIR}/nanopore_hdp.o ${BINDIR}/main ${BINDIR}/utils_tests ${BINDIR}/nanopore_hdp_tests ${BINDIR}/serialization_tests ${BINDIR}/distribution_comparison_tests ${BINDIR}/base_params_tests ${BINDIR}/parallel_tests ${BINDIR}/distr_script ${BINDIR}/distr_comparison_script
 

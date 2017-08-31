@@ -583,8 +583,8 @@ double rand_standard_uniform() {
     return ((double) rand()) / ((double) RAND_MAX);
 }
 
-double rand_uniform(double a) {
-    return ((double) rand()) / ((double) RAND_MAX / a);
+double rand_uniform(double a, double b) {
+    return a + ((double) rand()) / ((double) RAND_MAX / (b - a));
 }
 
 bool rand_bernoulli(double p) {
@@ -598,6 +598,10 @@ double rand_exponential(double lambda) {
     } while (draw == 1.0);
     return -log(1.0 - draw) / lambda;
 }
+
+//double rand_gamma(double alpha, double beta) {
+//    
+//}
 
 double log_posterior_conditional_term(double nu_post, double alpha_post,
                                       double beta_post) {

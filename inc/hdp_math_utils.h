@@ -38,9 +38,10 @@ double grid_spline_interp(double query_x, double* x, double* y, double* slope, i
 
 double* linspace(double start, double stop, int64_t length);
 
-double rand_uniform(double a);
-double rand_beta(double a, double b);
+double rand_uniform(double a, double b);
 bool rand_bernoulli(double p);
+// parameterized so that E(X) = lambda
+double rand_exponential(double lambda);
 
 // explained further in Jordan's math notebook section "Cached variables for improved performance"
 double log_posterior_conditional_term(double nu_post, double two_alpha_post, double beta_post);//,
