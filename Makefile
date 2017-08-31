@@ -98,7 +98,7 @@ ${BINDIR}/distr_comparison_script: ${TESTDIR}/distr_comparison_script.c ${OBJDIR
 clean:
 	@if [ $$(find bin -type f | wc -l) -gt 0 ]; \
 	then { \
-		echo "The following will be deleted:"; \
+		echo "The following hdp_mixture files will be deleted:"; \
 		echo "------------------------------"; \
 		find $(BINDIR) $(OBJDIR) -type f; \
 		echo "------------------------------"; \
@@ -112,6 +112,7 @@ clean:
 	then find $(BINDIR) $(OBJDIR) -type f -delete; \
 	else echo "Aborted"; \
 	fi;
+	if [ -d ${SONLIBROOTDIR} ]; then cd ${SONLIBROOTDIR} && make clean; fi
 
 .pre-build:
 	if [ ! -d $(BINDIR) ]; then mkdir -p $(BINDIR); fi
