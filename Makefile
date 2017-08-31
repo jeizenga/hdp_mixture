@@ -1,7 +1,5 @@
 GITHUBDIR:=..
 ROOTDIR:=${GITHUBDIR}/hdp_mixture
-SONLIBROOTDIR:=${GITHUBDIR}/sonLib
-SONLIBDIR:=${SONLIBROOTDIR}/lib
 IMPLDIR:=${ROOTDIR}/impl
 INCDIR:=${ROOTDIR}/inc
 BINDIR:=${ROOTDIR}/bin
@@ -9,6 +7,8 @@ LIBDIR:=${ROOTDIR}/lib
 TESTDIR:=${ROOTDIR}/test
 OBJDIR:=${ROOTDIR}/obj
 EXTERNDIR:=${ROOTDIR}/external
+SONLIBROOTDIR:=${EXTERNDIR}/sonLib
+SONLIBDIR:=${SONLIBROOTDIR}/lib
 CFLAGS:=-std=c99 -Wall -Wextra -Wpedantic -fopenmp
 INC:=-I${INCDIR} -I${SONLIBDIR} -I${EXTERNDIR}
 LINK:=-L${SONLIBDIR} -L${OBJDIR} -lm
@@ -38,7 +38,7 @@ ${OBJDIR}/CuTest.o:
 	${CC} ${CFLAGS} -c ${EXTERNDIR}/CuTest.c -I${EXTERNDIR} -o ${OBJDIR}/CuTest.o
 
 ${SONLIBDIR}/sonLib.a:
-	if [ ! -d ${SONLIBROOTDIR} ]; then cd ${GITHUBDIR} && git clone https://github.com/benedictpaten/sonLib.git; fi
+	if [ ! -d ${SONLIBROOTDIR} ]; then cd ${EXTERNDIR} && git clone https://github.com/benedictpaten/sonLib.git; fi
 	cd ${SONLIBROOTDIR} && make
 	
 ${BINDIR}/main: ${TESTDIR}/main.c ${OBJDIR}/hdp.o ${INCDIR}/hdp.h
