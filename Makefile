@@ -13,9 +13,11 @@ CFLAGS:=-std=c99 -Wall -Wextra -Wpedantic -fopenmp
 INC:=-I${INCDIR} -I${SONLIBDIR} -I${EXTERNDIR}
 LINK:=-L${SONLIBDIR} -L${OBJDIR} -lm
 SHELL:=/bin/bash
-CC:=gcc-5.2.0
+CC:=gcc
 
-all: ${OBJDIR}/CuTest.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/rnglib.o ${OBJDIR}/ranlib.o ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/hdp.o ${OBJDIR}/nanopore_hdp.o ${BINDIR}/main ${BINDIR}/utils_tests ${BINDIR}/nanopore_hdp_tests ${BINDIR}/serialization_tests ${BINDIR}/distribution_comparison_tests ${BINDIR}/base_params_tests ${BINDIR}/parallel_tests ${BINDIR}/distr_script ${BINDIR}/distr_comparison_script
+.PHONY: clean .pre-build
+
+all: .pre-build ${OBJDIR}/CuTest.o ${SONLIBDIR}/sonLib.a ${OBJDIR}/rnglib.o ${OBJDIR}/ranlib.o ${OBJDIR}/hdp_math_utils.o ${OBJDIR}/hdp.o ${OBJDIR}/nanopore_hdp.o ${BINDIR}/main ${BINDIR}/utils_tests ${BINDIR}/nanopore_hdp_tests ${BINDIR}/serialization_tests ${BINDIR}/distribution_comparison_tests ${BINDIR}/base_params_tests ${BINDIR}/parallel_tests ${BINDIR}/distr_script ${BINDIR}/distr_comparison_script
 
 ${OBJDIR}/nanopore_hdp.o: ${OBJDIR}/hdp.o
 	${CC} ${CFLAGS} -c ${IMPLDIR}/nanopore_hdp.c ${INC} -o ${OBJDIR}/nanopore_hdp.o
@@ -113,3 +115,8 @@ clean:
 	then find $(BINDIR) $(OBJDIR) -type f -delete; \
 	else echo "Aborted"; \
 	fi;
+
+.pre-build:
+	if [ ! -d $(BINDIR) ]; then mkdir -p $(BINDIR); fi
+	if [ ! -d $(OBJDIR) ]; then mkdir -p $(OBJDIR); fi
+	if [ `gcc --version | grep '\(4\.9\.[1-9]\)\|\(5\.\d\.\d\)' | wc -l` -eq 0 ]; then echo "WARNING: hdp_mixture requires gcc version 4.9.1 or above"; fi
