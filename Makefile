@@ -38,11 +38,8 @@ ${OBJDIR}/CuTest.o:
 	${CC} ${CFLAGS} -c ${EXTERNDIR}/CuTest.c -I${EXTERNDIR} -o ${OBJDIR}/CuTest.o
 
 ${SONLIBDIR}/sonLib.a:
-	cd ${SONLIBROOTDIR}
-	make
-	cd ${ROOTDIR}
-
-
+	if [ ! -d ${SONLIBROOTDIR} ]; then cd ${GITHUBDIR} && git clone https://github.com/benedictpaten/sonLib.git; fi
+	cd ${SONLIBROOTDIR} && make
 	
 ${BINDIR}/main: ${TESTDIR}/main.c ${OBJDIR}/hdp.o ${INCDIR}/hdp.h
 	${CC} ${CFLAGS} -c ${TESTDIR}/main.c ${INC} -o ${OBJDIR}/main.o
