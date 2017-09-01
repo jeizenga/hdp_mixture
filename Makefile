@@ -117,4 +117,4 @@ clean:
 .pre-build:
 	if [ ! -d $(BINDIR) ]; then mkdir -p $(BINDIR); fi
 	if [ ! -d $(OBJDIR) ]; then mkdir -p $(OBJDIR); fi
-	if [ `gcc --version | grep '\(4\.9\.[1-9]\)\|\(5\.\d\.\d\)' | wc -l` -eq 0 ]; then echo "WARNING: hdp_mixture requires gcc version 4.9.1 or above"; fi
+	if [ `gcc --version | grep '\(4\.9\.[1-9]\d*\)\|\([5-9]\d*\.\d\{1,\}\(\.\d\{1,\}\)\{0,1\}\)' | wc -l` -eq 0 ]; then echo "WARNING: hdp_mixture requires gcc version 4.9.1 or above"; fi
